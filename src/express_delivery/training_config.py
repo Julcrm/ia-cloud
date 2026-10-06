@@ -1,8 +1,6 @@
-"""Constantes utiles uniquement à l'entraînement (cellules 5, 20 et 41)."""
+"""Constantes utiles uniquement à l'entraînement (cellules 20 et 41)."""
 
 from express_delivery.config import ARTIFACTS_DIR
-
-PROJECT_NAME = "eligibilite-livraison-express"
 
 TARGET_COLUMN = "express_eligible"
 

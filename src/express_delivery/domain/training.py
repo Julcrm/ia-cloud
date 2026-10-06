@@ -10,11 +10,16 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from express_delivery.config import DEFAULT_THRESHOLD, FEATURE_COLUMNS, MODEL_VERSION, RANDOM_STATE
+from express_delivery.config import (
+    DEFAULT_THRESHOLD,
+    FEATURE_COLUMNS,
+    MODEL_VERSION,
+    PROJECT_NAME,
+    RANDOM_STATE,
+)
 from express_delivery.training_config import (
     CATEGORICAL_FEATURES,
     NUMERIC_FEATURES,
-    PROJECT_NAME,
     TARGET_COLUMN,
 )
 

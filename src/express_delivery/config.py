@@ -1,11 +1,13 @@
 """Constantes utiles en production, à la prédiction (cellules 3, 5, 20, 41 et 50)."""
 
+import os
 from pathlib import Path
 
 RANDOM_STATE = 42
 
 ARTIFACTS_DIR = Path("artifacts")
 
+PROJECT_NAME = "eligibilite-livraison-express"
 MODEL_VERSION = "1.0.0"
 
 # Les identifiants et les dates brutes ne sont pas utilisés directement
@@ -29,6 +31,11 @@ MODEL_PATH = ARTIFACTS_DIR / "express_delivery_model.joblib"
 FEATURES_PATH = ARTIFACTS_DIR / "features.json"
 
 PREDICTIONS_PATH = ARTIFACTS_DIR / "batch_predictions.csv"
+
+# Stockage des commandes (ADR-0001). Par défaut : catalogue et fichiers locaux.
+# En production : catalogue PostgreSQL et fichiers sur S3.
+DUCKLAKE_CATALOG = os.environ.get("DUCKLAKE_CATALOG", "ducklake:data/catalog.ducklake")
+DUCKLAKE_DATA_PATH = os.environ.get("DUCKLAKE_DATA_PATH", "data/lake/")
 
 # Seuil de décision par défaut, à choisir avec le métier.
 DEFAULT_THRESHOLD = 0.5
