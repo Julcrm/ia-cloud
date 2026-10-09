@@ -37,5 +37,8 @@ PREDICTIONS_PATH = ARTIFACTS_DIR / "batch_predictions.csv"
 DUCKLAKE_CATALOG = os.environ.get("DUCKLAKE_CATALOG", "ducklake:data/catalog.ducklake")
 DUCKLAKE_DATA_PATH = os.environ.get("DUCKLAKE_DATA_PATH", "data/lake/")
 
+# Clé exigée sur les routes /v1/* (ADR-0006). Sans valeur, ces routes sont refusées.
+API_KEY = os.environ.get("API_KEY")
+
 # Seuil de décision par défaut, à choisir avec le métier.
 DEFAULT_THRESHOLD = 0.5

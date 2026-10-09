@@ -4,6 +4,7 @@ Lancement depuis la racine du projet :
     uv run uvicorn express_delivery.api.app:app
 """
 
+import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -22,7 +23,7 @@ from express_delivery.api.schemas import (
     Prediction,
     ReadinessStatus,
 )
-from express_delivery.config import MODEL_VERSION, PROJECT_NAME
+from express_delivery.config import API_KEY, MODEL_VERSION, PROJECT_NAME
 from express_delivery.domain.prediction import OrderEligibilityPredictor
 from express_delivery.infrastructure.dev.file_model_repository import FileModelRepository
 from express_delivery.infrastructure.ducklake.ducklake_order_store import DuckLakeOrderStore
@@ -75,6 +76,13 @@ def predict_in_background(order_data, model):
     print(f"Prédiction asynchrone : {predict(order_data, model).model_dump_json()}")
 
 
+def is_valid_api_key(received, api_key):
+    """Comparaison en temps constant ; sans clé configurée, rien n'est accepté."""
+    if not api_key or received is None:
+        return False
+    return secrets.compare_digest(received.encode(), api_key.encode())
+
+
 def with_order_id(order: OrderFeatures):
     order_data = order.model_dump()
     order_data["order_id"] = order.order_id or f"CMD-{uuid.uuid4().hex}"
@@ -107,6 +115,7 @@ def get_readiness(request: Request) -> ReadinessStatus:
     checks = {
         "model": "loaded" if request.app.state.model is not None else "not_loaded",
         "order_store": "unreachable",
+        "api_key": "configured" if request.app.state.api_key else "missing",
     }
     if request.app.state.order_store is not None:
         try:
@@ -115,7 +124,7 @@ def get_readiness(request: Request) -> ReadinessStatus:
         except Exception:
             pass
 
-    ready = checks == {"model": "loaded", "order_store": "reachable"}
+    ready = checks == {"model": "loaded", "order_store": "reachable", "api_key": "configured"}
     status = ReadinessStatus(
         status="ready" if ready else "not_ready", checks=checks, version=MODEL_VERSION
     )
@@ -187,7 +196,7 @@ def create_prediction(order: OrderFeatures, request: Request) -> Prediction:
     return predict(with_order_id(order), model)
 
 
-def create_app(build_order_store, model_repository: ModelRepository) -> FastAPI:
+def create_app(build_order_store, model_repository: ModelRepository, api_key) -> FastAPI:
     """Seul endroit de l'API qui choisit les implémentations concrètes."""
 
     @asynccontextmanager
@@ -202,7 +211,18 @@ def create_app(build_order_store, model_repository: ModelRepository) -> FastAPI:
         description="API de prédiction d'éligibilité à la livraison express.",
         lifespan=lifespan,
     )
+    app.state.api_key = api_key
     app.include_router(router)
+
+    # Middleware et non dépendance FastAPI : la clé n'apparaît pas dans /openapi.json,
+    # qui reste identique au contrat openapi.yml (ADR-0006).
+    @app.middleware("http")
+    async def require_api_key(request: Request, call_next):
+        if request.url.path.startswith("/v1/") and not is_valid_api_key(
+            request.headers.get("X-API-Key"), api_key
+        ):
+            return error_response(401, "unauthorized", "Clé d'API absente ou invalide.")
+        return await call_next(request)
 
     @app.exception_handler(ApiError)
     async def handle_api_error(request: Request, error: ApiError):
@@ -223,4 +243,4 @@ def create_app(build_order_store, model_repository: ModelRepository) -> FastAPI:
     return app
 
 
-app = create_app(DuckLakeOrderStore, FileModelRepository())
+app = create_app(DuckLakeOrderStore, FileModelRepository(), API_KEY)
