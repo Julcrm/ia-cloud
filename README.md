@@ -84,7 +84,9 @@ src/express_delivery/
 
 | Variable | Défaut (dev) | Rôle |
 |----------|--------------|------|
-| `DUCKLAKE_CATALOG` | `ducklake:data/catalog.ducklake` | Catalogue DuckLake (PostgreSQL en production) |
-| `DUCKLAKE_DATA_PATH` | `data/lake/` | Emplacement des fichiers Parquet (S3 en production) |
+| `DUCKLAKE_CATALOG` | `ducklake:data/catalog.ducklake` | Catalogue DuckLake ; `ducklake:postgres:` en production |
+| `DUCKLAKE_DATA_PATH` | `data/lake/` | Fichiers Parquet ; `s3://<bucket>/<dossier>/` en production |
+| `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | `localhost`, `5432`, `ia_cloud`, —, — | Connexion au catalogue PostgreSQL |
+| `S3_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | `http://localhost:3900`, —, —, `us-east-1` | Accès à Garage (la région est obligatoire) |
 | `API_KEY` | aucun | Clé exigée dans l'en-tête `X-API-Key` des routes `/v1/*` (secret Coolify en production) |
 

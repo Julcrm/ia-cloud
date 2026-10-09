@@ -33,9 +33,23 @@ FEATURES_PATH = ARTIFACTS_DIR / "features.json"
 PREDICTIONS_PATH = ARTIFACTS_DIR / "batch_predictions.csv"
 
 # Stockage des commandes (ADR-0001). Par défaut : catalogue et fichiers locaux.
-# En production : catalogue PostgreSQL et fichiers sur S3.
+# En production : DUCKLAKE_CATALOG="ducklake:postgres:" et DUCKLAKE_DATA_PATH="s3://...".
 DUCKLAKE_CATALOG = os.environ.get("DUCKLAKE_CATALOG", "ducklake:data/catalog.ducklake")
 DUCKLAKE_DATA_PATH = os.environ.get("DUCKLAKE_DATA_PATH", "data/lake/")
+
+# Catalogue PostgreSQL, lu seulement si DUCKLAKE_CATALOG vaut "ducklake:postgres:".
+POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "localhost")
+POSTGRES_PORT = int(os.environ.get("POSTGRES_PORT", "5432"))
+POSTGRES_DB = os.environ.get("POSTGRES_DB", "ia_cloud")
+POSTGRES_USER = os.environ.get("POSTGRES_USER", "")
+POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
+
+# Stockage S3 (Garage), lu seulement si DUCKLAKE_DATA_PATH commence par "s3://".
+# Garage refuse une signature sans région : us-east-1.
+S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL", "http://localhost:3900")
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+AWS_DEFAULT_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
 # Clé exigée sur les routes /v1/* (ADR-0006). Sans valeur, ces routes sont refusées.
 API_KEY = os.environ.get("API_KEY")
