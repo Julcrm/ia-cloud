@@ -98,7 +98,9 @@ router = APIRouter()
     tags=["health"],
     operation_id="getHealth",
     summary="Sonde de vivacité",
-    description="Répond 200 si le processus est vivant. Ne doit jamais dépendre d'une brique externe.",
+    description=(
+        "Répond 200 si le processus est vivant. Ne doit jamais dépendre d'une brique externe."
+    ),
     openapi_extra={"x-session": 1},
 )
 def get_health() -> HealthStatus:
@@ -161,7 +163,9 @@ def create_order(
 ) -> OrderAccepted:
     order_store = request.app.state.order_store
     if order_store is None:
-        raise ApiError(500, "order_store_unavailable", "Le stockage des commandes est indisponible.")
+        raise ApiError(
+            500, "order_store_unavailable", "Le stockage des commandes est indisponible."
+        )
 
     order_data = with_order_id(order)
     order_store.add(order_data)
@@ -181,7 +185,9 @@ def create_order(
 def get_order(order_id: str, request: Request) -> OrderFeatures:
     order_store = request.app.state.order_store
     if order_store is None:
-        raise ApiError(500, "order_store_unavailable", "Le stockage des commandes est indisponible.")
+        raise ApiError(
+            500, "order_store_unavailable", "Le stockage des commandes est indisponible."
+        )
 
     order = order_store.get(order_id)
     if order is None:

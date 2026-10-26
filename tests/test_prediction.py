@@ -37,9 +37,7 @@ def run_prediction_tests(model):
 
     try:
         OrderEligibilityPredictor.predict_order_eligibility(invalid_order, model)
-        raise AssertionError(
-            "Une variable obligatoire absente aurait dû provoquer une erreur."
-        )
+        raise AssertionError("Une variable obligatoire absente aurait dû provoquer une erreur.")
     except ValueError:
         pass
 

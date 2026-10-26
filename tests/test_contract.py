@@ -28,7 +28,9 @@ def test_operation_matches_contract(path, method, operation):
 
     for key in ("operationId", "tags", "summary", "x-session"):
         assert operation.get(key) == expected.get(key), key
-    assert (operation.get("description") or "").strip() == (expected.get("description") or "").strip()
+    assert (operation.get("description") or "").strip() == (
+        expected.get("description") or ""
+    ).strip()
     # FastAPI ajoute un 422 aux paramètres de chemin ; les codes du contrat doivent tous y être.
     assert set(expected["responses"]) <= set(operation["responses"])
 

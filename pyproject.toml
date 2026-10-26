@@ -24,6 +24,7 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
     "pyyaml>=6.0.3",
+    "ruff>=0.17.2",
 ]
 
 [tool.uv]
@@ -31,6 +32,14 @@ default-groups = ["train", "dev"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["*.ipynb"] # notebook d'origine du cours, gardé tel quel
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, ordre des imports, syntaxe moderne, bugs fréquents
+select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
