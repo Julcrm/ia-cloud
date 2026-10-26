@@ -48,8 +48,10 @@ Un commit = un changement cohérent. Jamais de secret, de `.env` ni d'artefact
 
 ## Fusion : pipeline au vert
 
-Chaque push et chaque pull request lancent le pipeline GitHub Actions (tests, build de
-l'image Docker...). **Une pull request n'est fusionnée que si le pipeline passe
+Chaque pull request vers `dev` ou `main`, et chaque push sur ces deux branches, lance
+le pipeline GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) :
+tests et conformité au contrat `openapi.yml`, build des images `api` et `train`,
+démarrage de l'API, analyse de vulnérabilités. **Une pull request n'est fusionnée que si le pipeline passe
 entièrement au vert.** Sinon, on corrige sur la même branche et on pousse à nouveau.
 
 ## Décisions d'architecture (ADR)
