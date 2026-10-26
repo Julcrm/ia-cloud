@@ -68,6 +68,21 @@ artifacts/
 └── batch_predictions.csv           # sortie de predict-batch
 ```
 
+## Images publiées
+
+Le pipeline publie les deux images sur le registre GitHub (GHCR) après chaque fusion,
+jamais sur une pull request, et seulement si les tests, le démarrage et l'analyse de
+vulnérabilités sont au vert.
+
+| Image | Fusion dans `dev` | Fusion dans `main` |
+|-------|-------------------|--------------------|
+| `ghcr.io/julcrm/ia-cloud-api` | `dev`, `sha-<commit>` | `main`, `latest`, `sha-<commit>` |
+| `ghcr.io/julcrm/ia-cloud-train` | `dev`, `sha-<commit>` | `main`, `latest`, `sha-<commit>` |
+
+```bash
+docker pull ghcr.io/julcrm/ia-cloud-api:latest
+```
+
 ## API
 
 Le contrat est [`openapi.yml`](openapi.yml) : il est fourni et ne se modifie pas. La
