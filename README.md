@@ -4,6 +4,27 @@
 
 **Stack** : Python 3.12 · uv · scikit-learn · MLflow · FastAPI · DuckDB / DuckLake
 
+## Architecture
+
+```
+Commandes synthétiques (SyntheticOrdersSource)
+        ↓
+Entraînement — scikit-learn + MLflow (main.py train, au build de l'image)
+        ↓
+Artefacts — modèle, variables, métriques, model card (artifacts/)
+        ↓
+FastAPI — clé X-API-Key sur /v1/*, sondes /health et /health/ready
+        ↓                                        ↓
+Prédiction                                       Collecte
+POST /v1/predictions · GET /v1/model             POST /v1/orders · GET /v1/orders/{order_id}
+                                                 ↓
+                                                 DuckLake — Parquet sur Garage (S3),
+                                                 catalogue PostgreSQL
+```
+
+Image Docker déployée sur un VPS netcup par **Coolify**, en rolling update piloté par
+`/health/ready`. En local, le catalogue DuckLake et les fichiers Parquet restent dans `data/`.
+
 ---
 
 ## Démarrage rapide
@@ -96,7 +117,7 @@ git branch -d feature/model-card
 Une livraison fusionne `dev` dans `main` (`git merge --no-ff dev`) et peut être marquée
 d'un tag, par ex. `git tag v1.1.0`.
 
-## Architecture
+## Structure du projet
 
 ```text
 .
@@ -115,7 +136,7 @@ d'un tag, par ex. `git tag v1.1.0`.
     └── training_config.py
 ```
 
-### Décisions d'architecture
+## Décisions d'architecture
 
 | ADR | Sujet | Décision |
 |-----|-------|----------|
@@ -126,7 +147,7 @@ d'un tag, par ex. `git tag v1.1.0`.
 | [ADR-0005](docs/adr/ADR-0005-strategie-deploiement.pdf) | Stratégie de déploiement | Rolling update de Coolify |
 | [ADR-0006](docs/adr/ADR-0006-securisation.pdf) | Sécurisation | Défense en profondeur, clé d'API sur `/v1/*` |
 
-### Configuration
+## Configuration
 
 | Variable | Défaut (dev) | Rôle |
 |----------|--------------|------|
