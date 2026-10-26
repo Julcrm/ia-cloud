@@ -49,8 +49,10 @@ interactive sur <http://localhost:8000/docs>.
 | `uv run main.py predict-batch` | Charge le modèle, prédit un lot de commandes, écrit le CSV |
 | `API_KEY=... uv run uvicorn express_delivery.api.app:app` | Démarre l'API |
 | `uv run pytest` | Lance les tests de prédiction et de l'API |
-| `docker build -t ia-cloud .` | Construit l'image de l'API (modèle entraîné pendant le build) |
-| `docker run -e API_KEY=... -p 8000:8000 ia-cloud` | Lance l'API en conteneur |
+| `docker build --target api -t ia-cloud-api .` | Construit l'image de l'API, sans mlflow (modèle entraîné pendant le build) |
+| `docker build --target train -t ia-cloud-train .` | Construit l'image d'entraînement, avec mlflow |
+| `docker run -e API_KEY=... -p 8000:8000 ia-cloud-api` | Lance l'API en conteneur |
+| `docker run --rm ia-cloud-train` | Entraîne le modèle ; le conteneur s'arrête à la fin |
 | `uv run mlflow ui` | Ouvre l'interface MLflow sur <http://localhost:5000> |
 
 ### Artefacts produits

@@ -1,8 +1,17 @@
 # syntax=docker/dockerfile:1
 
+# Deux images depuis ce fichier (ADR-0005 : une appli Coolify « Dockerfile » chacune) :
+#   docker build --target api   -t ia-cloud-api .     API, cible par défaut
+#   docker build --target train -t ia-cloud-train .   entraînement, lancé à la demande
+
+# Image de base figée par version et par empreinte : un build donne toujours le même
+# système. À mettre à jour volontairement pour récupérer les correctifs de sécurité.
+ARG PYTHON_IMAGE=python:3.12.15-slim-trixie@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
+
+
 # ── Dépendances de l'API et package, installés dans /app/.venv (sans mlflow) ──
 # Les suites de tests livrées avec scipy, pandas, sklearn... sont retirées : ~100 Mo.
-FROM python:3.12-slim AS builder
+FROM ${PYTHON_IMAGE} AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.7.7 /uv /bin/uv
 
@@ -25,32 +34,54 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     && find /app/.venv -type d -name tests -prune -exec rm -rf {} +
 
 
-# ── Modèle : entraîné au build tant qu'il n'est pas lu sur S3 (ADR-0002, séance 3) ──
-# mlflow n'est ajouté que dans cette étape, l'image finale ne le contient pas.
-FROM builder AS model
+# ── Entraînement : dépendances de l'API + mlflow ──
+# L'utilisateur app peut créer ses sorties dans /app (artifacts/, mlruns/, mlflow.db),
+# mais pas modifier le .venv ni les sources, qui restent à root.
+FROM builder AS train
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-default-groups --group train --no-editable \
-    && /app/.venv/bin/python main.py train
+    && find /app/.venv -type d -name tests -prune -exec rm -rf {} + \
+    && useradd --create-home --uid 1000 app \
+    && chown app:app /app
+
+# Pas de Git dans l'image : mlflow ne cherche pas le commit du code.
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    GIT_PYTHON_REFRESH=quiet
+
+USER 1000:1000
+
+CMD ["python", "main.py", "train"]
 
 
-# ── Image finale : API seule, sans uv, sans sources ni traces MLflow ──
-FROM python:3.12-slim
+# ── Modèle : entraîné au build tant qu'il n'est pas lu sur S3 (ADR-0002) ──
+FROM train AS model
 
-RUN useradd --create-home --uid 1000 app \
+RUN python main.py train
+
+
+# ── API : sans uv, sans mlflow, sans pip, sans sources ni traces MLflow ──
+FROM ${PYTHON_IMAGE} AS api
+
+# pip ne sert pas à l'exécution et porte la plupart des vulnérabilités de l'image de base.
+RUN python -m pip uninstall --yes pip \
+    && useradd --create-home --uid 1000 app \
     && mkdir -p /app/data \
     && chown app:app /app/data
 
 WORKDIR /app
 
+# Code, dépendances et modèle appartiennent à root : l'API ne peut pas les modifier.
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=model /app/artifacts /app/artifacts
 
 ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-# Sans droits root (ADR-0006).
-USER app
+# Sans droits root (ADR-0006). UID numérique : vérifiable sans lire /etc/passwd.
+USER 1000:1000
 
 # Extensions DuckDB installées au build : l'API n'a pas à les télécharger au démarrage.
 RUN python -c "import duckdb; duckdb.sql('INSTALL ducklake; INSTALL postgres; INSTALL httpfs')"
