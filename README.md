@@ -45,10 +45,16 @@ artifacts/
 
 ## API
 
+Le contrat est [`openapi.yml`](openapi.yml) : il est fourni et ne se modifie pas. La
+documentation générée (`/docs`, `/openapi.json`) doit décrire la même API. Chaque
+opération y indique sa séance (`x-session`) ; celles des séances suivantes ne sont pas
+encore implémentées : `POST /v1/predictions/batch`, `GET /v1/predictions/{order_id}`
+(séance 5) et `GET /metrics` (séance 7).
+
 | Méthode | Route | Description |
 |---------|-------|-------------|
 | `GET` | `/health` | Sonde de vivacité : répond 200 tant que le processus tourne |
-| `GET` | `/health/ready` | Sonde de disponibilité : vérifie le modèle et le stockage, sinon 503 |
+| `GET` | `/health/ready` | Sonde de disponibilité : vérifie le modèle, le stockage et la clé d'API, sinon 503 |
 | `POST` | `/v1/orders` | Enregistre une commande (202) ; la prédiction est calculée en tâche de fond |
 | `GET` | `/v1/orders/{order_id}` | Relit une commande enregistrée |
 | `POST` | `/v1/predictions` | Prédiction synchrone pour une commande |
@@ -57,6 +63,17 @@ artifacts/
 Les routes `/v1/*` exigent l'en-tête `X-API-Key` (401 sinon) ; les sondes `/health`
 restent ouvertes. Sans variable `API_KEY`, les routes `/v1/*` sont refusées et
 `/health/ready` répond 503.
+
+```bash
+curl -H "X-API-Key: dev" http://localhost:8000/v1/model
+
+curl -X POST http://localhost:8000/v1/predictions \
+  -H "X-API-Key: dev" -H "Content-Type: application/json" \
+  -d '{"hour": 14, "day_of_week": 2, "weekend": 0, "distance_km": 3.5,
+       "order_value_eur": 89.9, "weight_kg": 2.4, "stock_available": 1,
+       "preparation_time_min": 18, "carrier_capacity": 0.85,
+       "weather": "normal", "delivery_zone": "centre", "customer_type": "premium"}'
+```
 
 ## Branches
 
@@ -82,14 +99,20 @@ d'un tag, par ex. `git tag v1.1.0`.
 ## Architecture
 
 ```text
-src/express_delivery/
-├── abstractions/     # contrats (ABC) : sources, stockage, modèle, export
-├── infrastructure/   # implémentations : dev/, mlflow/, ducklake/
-├── domain/           # logique métier : qualité des données, entraînement, prédiction
-├── pipelines.py      # TrainingPipeline, BatchPredictionPipeline
-├── api/              # schémas Pydantic et routes FastAPI
-├── config.py         # constantes de production
-└── training_config.py
+.
+├── main.py           # commandes train et predict-batch
+├── openapi.yml       # contrat de l'API
+├── Dockerfile        # image de l'API
+├── docs/adr/         # décisions d'architecture (PDF)
+├── tests/            # tests de prédiction et de l'API
+└── src/express_delivery/
+    ├── abstractions/     # contrats (ABC) : sources, stockage, modèle, export
+    ├── infrastructure/   # implémentations : dev/, mlflow/, ducklake/
+    ├── domain/           # logique métier : qualité des données, entraînement, prédiction
+    ├── pipelines.py      # TrainingPipeline, BatchPredictionPipeline
+    ├── api/              # schémas Pydantic et routes FastAPI
+    ├── config.py         # constantes de production
+    └── training_config.py
 ```
 
 ### Décisions d'architecture
@@ -97,7 +120,7 @@ src/express_delivery/
 | ADR | Sujet | Décision |
 |-----|-------|----------|
 | [ADR-0001](docs/adr/ADR-0001-stockage-commandes-clients.pdf) | Stockage des commandes | DuckLake : Parquet sur S3, catalogue PostgreSQL |
-| [ADR-0002](docs/adr/ADR-0002-stockage-artefacts-modele.pdf) | Artefacts du modèle | Dossiers versionnés sur S3 et `current.json` |
+| [ADR-0002](docs/adr/ADR-0002-stockage-artefacts-modele.pdf) | Artefacts du modèle | Dossiers versionnés sur S3 et `current.json` (pour l'instant : `artifacts/` local, modèle entraîné au build de l'image) |
 | [ADR-0003](docs/adr/ADR-0003-plateforme-deploiement.pdf) | Plateforme de déploiement | VPS netcup + Coolify |
 | [ADR-0004](docs/adr/ADR-0004-cloud-on-premise-local.pdf) | Cloud, on-premise ou local | Cloud IaaS pour test et prod, local pour le dev |
 | [ADR-0005](docs/adr/ADR-0005-strategie-deploiement.pdf) | Stratégie de déploiement | Rolling update de Coolify |
