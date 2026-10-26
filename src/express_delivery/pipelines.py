@@ -54,9 +54,10 @@ class TrainingPipeline:
         self.evaluator.print_metrics(metrics)
         self.evaluator.print_report(y_test, y_pred)
 
-        self.model_repository.save(model_pipeline, metrics)
+        model_card = self.model_card_builder.build(metrics, X_train, X_test)
+        self.model_repository.save(model_pipeline, metrics, model_card)
 
-        return self.model_card_builder.build(metrics, X_train, X_test)
+        return model_card
 
 
 class BatchPredictionPipeline:

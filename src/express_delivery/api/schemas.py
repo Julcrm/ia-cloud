@@ -54,6 +54,25 @@ class Prediction(BaseModel):
     )
 
 
+class ModelCard(BaseModel):
+    """Model card de la cellule 55 du notebook."""
+
+    project: str = Field(examples=["eligibilite-livraison-express"])
+    model_version: str = Field(examples=["1.0.0"])
+    model_type: str = Field(examples=["Logistic regression"])
+    task: str = Field(examples=["binary classification"])
+    target: str = Field(examples=["express_eligible"])
+    threshold: float = Field(examples=[0.5])
+    trained_at: datetime | None = None
+    features: list[str]
+    metrics: dict[str, float] = Field(
+        examples=[
+            {"accuracy": 0.86, "precision": 0.88, "recall": 0.84, "f1_score": 0.86, "roc_auc": 0.93}
+        ]
+    )
+    limitations: list[str] | None = None
+
+
 class HealthStatus(BaseModel):
     status: Literal["ok"]
     service: str

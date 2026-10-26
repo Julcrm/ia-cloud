@@ -29,6 +29,7 @@ FEATURE_COLUMNS = [
 
 MODEL_PATH = ARTIFACTS_DIR / "express_delivery_model.joblib"
 FEATURES_PATH = ARTIFACTS_DIR / "features.json"
+MODEL_CARD_PATH = ARTIFACTS_DIR / "model_card.json"
 
 PREDICTIONS_PATH = ARTIFACTS_DIR / "batch_predictions.csv"
 
