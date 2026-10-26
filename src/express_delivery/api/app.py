@@ -1,4 +1,4 @@
-"""API HTTP, contrat : openapi.yml (opérations de la séance 1).
+"""API HTTP, contrat : openapi.yml (opérations des séances 1 et 3).
 
 Lancement depuis la racine du projet :
     uv run uvicorn express_delivery.api.app:app
@@ -18,6 +18,7 @@ from express_delivery.abstractions.model_repository import ModelRepository
 from express_delivery.api.schemas import (
     Error,
     HealthStatus,
+    ModelCard,
     OrderAccepted,
     OrderFeatures,
     Prediction,
@@ -196,12 +197,30 @@ def create_prediction(order: OrderFeatures, request: Request) -> Prediction:
     return predict(with_order_id(order), model)
 
 
+@router.get(
+    "/v1/model",
+    tags=["model"],
+    operation_id="getModelCard",
+    summary="Métadonnées et métriques du modèle en service",
+    description="Implémentation HTTP de la cellule 55 du notebook (model card).",
+    responses={200: {"description": "Model card du modèle en service"}},
+    openapi_extra={"x-session": 3},
+)
+def get_model_card(request: Request) -> ModelCard:
+    # 503 non déclaré : le contrat ne prévoit que 200, comme pour le 401 du middleware.
+    model_card = request.app.state.model_card
+    if request.app.state.model is None or model_card is None:
+        raise ApiError(503, "model_unavailable", "Aucun modèle n'est chargé.")
+    return ModelCard(**model_card)
+
+
 def create_app(build_order_store, model_repository: ModelRepository, api_key) -> FastAPI:
     """Seul endroit de l'API qui choisit les implémentations concrètes."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.model = try_or_none(model_repository.load)
+        app.state.model_card = try_or_none(model_repository.load_model_card)
         app.state.order_store = try_or_none(build_order_store)
         yield
 

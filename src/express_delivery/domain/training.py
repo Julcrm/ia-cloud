@@ -1,6 +1,7 @@
 """Préparation, construction, évaluation et résumé du modèle (cellules 20 à 29 et 55)."""
 
 import json
+from datetime import UTC, datetime
 
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
@@ -151,6 +152,7 @@ class ModelCardBuilder:
             "negative_class": "Commande non éligible à la livraison express",
             "features": FEATURE_COLUMNS,
             "threshold": DEFAULT_THRESHOLD,
+            "trained_at": datetime.now(UTC).isoformat(),
             "training_rows": len(X_train),
             "test_rows": len(X_test),
             "metrics": metrics,

@@ -67,7 +67,7 @@ def loaded_model(model_pipeline, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     model_repository = FileModelRepository()
-    model_repository.save(model_pipeline, metrics={})
+    model_repository.save(model_pipeline, metrics={}, model_card={})
 
     return model_repository.load()
 

@@ -27,7 +27,7 @@ interactive sur <http://localhost:8000/docs>.
 | `uv run main.py train` | Entraîne le modèle, suit l'entraînement dans MLflow, sauvegarde les artefacts |
 | `uv run main.py predict-batch` | Charge le modèle, prédit un lot de commandes, écrit le CSV |
 | `API_KEY=... uv run uvicorn express_delivery.api.app:app` | Démarre l'API |
-| `uv run pytest` | Lance les tests de prédiction |
+| `uv run pytest` | Lance les tests de prédiction et de l'API |
 | `docker build -t ia-cloud .` | Construit l'image de l'API (modèle entraîné pendant le build) |
 | `docker run -e API_KEY=... -p 8000:8000 ia-cloud` | Lance l'API en conteneur |
 | `uv run mlflow ui` | Ouvre l'interface MLflow sur <http://localhost:5000> |
@@ -39,6 +39,7 @@ artifacts/
 ├── express_delivery_model.joblib   # pipeline scikit-learn entraîné
 ├── features.json                   # variables attendues par le modèle
 ├── metrics.json                    # métriques sur le jeu de test
+├── model_card.json                 # résumé du modèle (cellule 55), servi par GET /v1/model
 └── batch_predictions.csv           # sortie de predict-batch
 ```
 
@@ -51,6 +52,7 @@ artifacts/
 | `POST` | `/v1/orders` | Enregistre une commande (202) ; la prédiction est calculée en tâche de fond |
 | `GET` | `/v1/orders/{order_id}` | Relit une commande enregistrée |
 | `POST` | `/v1/predictions` | Prédiction synchrone pour une commande |
+| `GET` | `/v1/model` | Model card du modèle en service : version, date d'entraînement, variables, métriques (503 sans modèle) |
 
 Les routes `/v1/*` exigent l'en-tête `X-API-Key` (401 sinon) ; les sondes `/health`
 restent ouvertes. Sans variable `API_KEY`, les routes `/v1/*` sont refusées et
