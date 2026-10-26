@@ -7,13 +7,13 @@
 ## Architecture
 
 ```
-Commandes synthétiques (SyntheticOrdersSource)
+Commandes synthétiques
         ↓
-Entraînement — scikit-learn + MLflow (main.py train, au build de l'image)
+Entraînement — scikit-learn + MLflow
         ↓
-Artefacts — modèle, variables, métriques, model card (artifacts/)
+Artefacts — modèle, variables, métriques, model card
         ↓
-FastAPI — clé X-API-Key sur /v1/*, sondes /health et /health/ready
+FastAPI — 
         ↓                                        ↓
 Prédiction                                       Collecte
 POST /v1/predictions · GET /v1/model             POST /v1/orders · GET /v1/orders/{order_id}
@@ -96,26 +96,10 @@ curl -X POST http://localhost:8000/v1/predictions \
        "weather": "normal", "delivery_zone": "centre", "customer_type": "premium"}'
 ```
 
-## Branches
+## Contribuer
 
-Gitflow simplifié : deux branches permanentes, des branches courtes pour le travail.
-
-| Branche | Rôle | Part de | Fusionne dans |
-|---------|------|---------|---------------|
-| `main` | Ce qui est déployé en production ; on n'y commite jamais directement | — | — |
-| `dev` | Intégration : la prochaine version, toujours fonctionnelle | `main` | `main` (fin de séance / livraison) |
-| `feature/<sujet>` | Une fonctionnalité, par ex. `feature/model-card` | `dev` | `dev` |
-| `hotfix/<sujet>` | Correction urgente de la production | `main` | `main` **et** `dev` |
-
-```bash
-git switch dev && git pull
-git switch -c feature/model-card          # travail, commits...
-git switch dev && git merge --no-ff feature/model-card
-git branch -d feature/model-card
-```
-
-Une livraison fusionne `dev` dans `main` (`git merge --no-ff dev`) et peut être marquée
-d'un tag, par ex. `git tag v1.1.0`.
+Branches (`main`, `dev`, `feature/*`, `hotfix/*`), commits, vérifications avant fusion,
+contrat de l'API et ADR : voir [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Structure du projet
 
@@ -124,6 +108,7 @@ d'un tag, par ex. `git tag v1.1.0`.
 ├── main.py           # commandes train et predict-batch
 ├── openapi.yml       # contrat de l'API
 ├── Dockerfile        # image de l'API
+├── CONTRIBUTING.md   # règles de travail
 ├── docs/adr/         # décisions d'architecture (PDF)
 ├── tests/            # tests de prédiction et de l'API
 └── src/express_delivery/
