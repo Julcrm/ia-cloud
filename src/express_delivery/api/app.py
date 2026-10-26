@@ -98,6 +98,7 @@ router = APIRouter()
     tags=["health"],
     operation_id="getHealth",
     summary="Sonde de vivacité",
+    description="Répond 200 si le processus est vivant. Ne doit jamais dépendre d'une brique externe.",
     openapi_extra={"x-session": 1},
 )
 def get_health() -> HealthStatus:
@@ -109,6 +110,11 @@ def get_health() -> HealthStatus:
     tags=["health"],
     operation_id="getReadiness",
     summary="Sonde de disponibilité",
+    description=(
+        "Répond 200 uniquement si le service est capable de répondre à une prédiction\n"
+        "(modèle chargé, dépendances joignables). C'est cette sonde qu'un orchestrateur\n"
+        "utilise pour router le trafic."
+    ),
     responses={503: {"model": ReadinessStatus, "description": "Le service n'est pas prêt"}},
     openapi_extra={"x-session": 1},
 )
@@ -140,6 +146,10 @@ def get_readiness(request: Request) -> ReadinessStatus:
     tags=["orders"],
     operation_id="createOrder",
     summary="Enregistrer une commande à prédire",
+    description=(
+        "Collecte de données : la commande est persistée via votre `OrderStore` et mise en file\n"
+        "d'attente pour prédiction. La réponse est immédiate, la prédiction est asynchrone."
+    ),
     responses={
         422: {"model": Error, "description": "Commande invalide"},
         500: {"model": Error, "description": "Erreur interne"},
@@ -184,6 +194,7 @@ def get_order(order_id: str, request: Request) -> OrderFeatures:
     tags=["predictions"],
     operation_id="createPrediction",
     summary="Prédire l'éligibilité express d'une commande",
+    description="Prédiction synchrone. C'est l'implémentation HTTP de la cellule 34 du notebook.",
     responses={
         422: {"model": Error, "description": "Commande invalide"},
         503: {"model": Error, "description": "Modèle indisponible"},

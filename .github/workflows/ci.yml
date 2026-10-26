@@ -1,0 +1,94 @@
+# Pipeline : une pull request n'est fusionnée que si tout est au vert (CONTRIBUTING.md).
+# Actions figées par SHA de commit : un tag peut être déplacé (cf. CVE-2026-33634, trivy-action).
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests et contrat
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.7.7" # même version que le Dockerfile
+          enable-cache: true
+
+      - name: Dépendances
+        run: uv sync --locked
+
+      - name: Tests (prédiction, API, conformité à openapi.yml)
+        run: uv run pytest -v
+
+  docker:
+    name: Images Docker
+    needs: tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build de l'image API
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: api
+          tags: ia-cloud-api:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build de l'image d'entraînement
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: train
+          tags: ia-cloud-train:ci
+          load: true
+          cache-from: type=gha
+
+      - name: L'entraînement se termine sans erreur
+        run: docker run --rm ia-cloud-train:ci
+
+      - name: L'API démarre, durcie comme en production
+        run: |
+          docker run -d --name api -p 8000:8000 -e API_KEY=ci \
+            --read-only --tmpfs /tmp --tmpfs /app/data:uid=1000,gid=1000 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            ia-cloud-api:ci
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' api)
+            [ "$status" = healthy ] && break
+            sleep 2
+          done
+          docker logs api
+          [ "$status" = healthy ] || { echo "Healthcheck : $status"; exit 1; }
+          curl -fsS http://localhost:8000/health/ready
+          curl -fsS -H "X-API-Key: ci" http://localhost:8000/v1/model > /dev/null
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/v1/model)" = 401 ]
+
+      - name: Vulnérabilités de l'image API (critiques et élevées corrigibles)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ia-cloud-api:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
