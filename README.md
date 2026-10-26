@@ -117,26 +117,29 @@ curl -X POST http://localhost:8000/v1/predictions \
 
 ## Contribuer
 
-Branches (`main`, `dev`, `feature/*`, `hotfix/*`), commits, vérifications avant fusion,
-contrat de l'API et ADR : voir [CONTRIBUTING.md](CONTRIBUTING.md).
+Branches (`main`, `dev`, `feature/*`, `hotfix/*`), commits, fusion par pull request
+une fois le pipeline au vert, ADR : voir [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Structure du projet
 
 ```text
 .
-├── main.py           # commandes train et predict-batch
-├── openapi.yml       # contrat de l'API
-├── Dockerfile        # image de l'API
-├── CONTRIBUTING.md   # règles de travail
-├── docs/adr/         # décisions d'architecture (PDF)
-├── tests/            # tests de prédiction et de l'API
+├── main.py              # commandes train et predict-batch
+├── openapi.yml          # contrat de l'API
+├── Dockerfile           # image de l'API
+├── CODE_OF_CONDUCT.md   # code de conduite
+├── CONTRIBUTING.md      # règles de travail
+├── LICENSE              # licence MIT
+├── SECURITY.md          # signaler une vulnérabilité, mesures en place
+├── docs/adr/            # décisions d'architecture (PDF)
+├── tests/               # tests de prédiction et de l'API
 └── src/express_delivery/
-    ├── abstractions/     # contrats (ABC) : sources, stockage, modèle, export
-    ├── infrastructure/   # implémentations : dev/, mlflow/, ducklake/
-    ├── domain/           # logique métier : qualité des données, entraînement, prédiction
-    ├── pipelines.py      # TrainingPipeline, BatchPredictionPipeline
-    ├── api/              # schémas Pydantic et routes FastAPI
-    ├── config.py         # constantes de production
+    ├── abstractions/    # contrats (ABC) : sources, stockage, modèle, export
+    ├── infrastructure/  # implémentations : dev/, mlflow/, ducklake/
+    ├── domain/          # logique métier : qualité des données, entraînement, prédiction
+    ├── pipelines.py     # TrainingPipeline, BatchPredictionPipeline
+    ├── api/             # schémas Pydantic et routes FastAPI
+    ├── config.py        # constantes de production
     └── training_config.py
 ```
 
@@ -161,3 +164,6 @@ contrat de l'API et ADR : voir [CONTRIBUTING.md](CONTRIBUTING.md).
 | `S3_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | `http://localhost:3900`, —, —, `us-east-1` | Accès à Garage (la région est obligatoire) |
 | `API_KEY` | aucun | Clé exigée dans l'en-tête `X-API-Key` des routes `/v1/*` (secret Coolify en production) |
 
+## Licence
+
+[MIT](LICENSE). Le contrat `openapi.yml` est fourni par le cours, pour un usage pédagogique.
