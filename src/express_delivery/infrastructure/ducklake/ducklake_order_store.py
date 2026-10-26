@@ -54,8 +54,7 @@ class DuckLakeOrderStore(OrderStore):
         # Limite d'inlining en option d'ATTACH : CALL lake.set_option(...) fait planter
         # DuckDB 1.5.6 à la réouverture d'un catalogue PostgreSQL existant.
         self._connection.execute(
-            f"ATTACH '{catalog}' AS lake "
-            f"(DATA_PATH '{data_path}', DATA_INLINING_ROW_LIMIT 1000)"
+            f"ATTACH '{catalog}' AS lake (DATA_PATH '{data_path}', DATA_INLINING_ROW_LIMIT 1000)"
         )
         self._connection.execute("""
             CREATE TABLE IF NOT EXISTS lake.orders_raw (
@@ -98,7 +97,8 @@ class DuckLakeOrderStore(OrderStore):
         self._connection.execute(f"""
             CREATE SECRET (
                 TYPE s3, KEY_ID {sql_literal(AWS_ACCESS_KEY_ID)},
-                SECRET {sql_literal(AWS_SECRET_ACCESS_KEY)}, REGION {sql_literal(AWS_DEFAULT_REGION)},
+                SECRET {sql_literal(AWS_SECRET_ACCESS_KEY)},
+                REGION {sql_literal(AWS_DEFAULT_REGION)},
                 ENDPOINT {sql_literal(endpoint.netloc)}, URL_STYLE 'path',
                 USE_SSL {str(endpoint.scheme == "https").lower()}
             )
@@ -126,7 +126,7 @@ class DuckLakeOrderStore(OrderStore):
                 f"SELECT {', '.join(COLUMNS)} FROM lake.orders WHERE order_id = ?",
                 [order_id],
             ).fetchone()
-        return dict(zip(COLUMNS, row)) if row else None
+        return dict(zip(COLUMNS, row, strict=True)) if row else None
 
     def ping(self):
         with self._lock:

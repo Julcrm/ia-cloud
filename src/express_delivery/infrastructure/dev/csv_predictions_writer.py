@@ -6,9 +6,6 @@ class CsvPredictionsWriter(PredictionsWriter):
     """Prédictions batch écrites dans un fichier CSV (cellule 50)."""
 
     def export(self, batch_predictions):
-        batch_predictions.to_csv(
-            PREDICTIONS_PATH,
-            index=False
-        )
+        batch_predictions.to_csv(PREDICTIONS_PATH, index=False)
 
         print(f"Résultats batch sauvegardés dans : {PREDICTIONS_PATH}")

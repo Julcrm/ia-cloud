@@ -39,11 +39,7 @@ class FeatureSelector:
 
     def split(self, X, y):
         X_train, X_test, y_train, y_test = train_test_split(
-            X,
-            y,
-            test_size=0.20,
-            random_state=RANDOM_STATE,
-            stratify=y
+            X, y, test_size=0.20, random_state=RANDOM_STATE, stratify=y
         )
 
         print(f"Jeu d'entraînement : {len(X_train):,} lignes")
@@ -58,52 +54,27 @@ class ModelPipelineFactory:
     def create(self):
         numeric_transformer = Pipeline(
             steps=[
-                (
-                    "imputer",
-                    SimpleImputer(strategy="median")
-                ),
-                (
-                    "scaler",
-                    StandardScaler()
-                ),
+                ("imputer", SimpleImputer(strategy="median")),
+                ("scaler", StandardScaler()),
             ]
         )
 
         categorical_transformer = Pipeline(
             steps=[
-                (
-                    "imputer",
-                    SimpleImputer(strategy="most_frequent")
-                ),
-                (
-                    "onehot",
-                    OneHotEncoder(
-                        handle_unknown="ignore",
-                        sparse_output=False
-                    )
-                ),
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
             ]
         )
 
         preprocessor = ColumnTransformer(
             transformers=[
-                (
-                    "numeric",
-                    numeric_transformer,
-                    NUMERIC_FEATURES
-                ),
-                (
-                    "categorical",
-                    categorical_transformer,
-                    CATEGORICAL_FEATURES
-                ),
+                ("numeric", numeric_transformer, NUMERIC_FEATURES),
+                ("categorical", categorical_transformer, CATEGORICAL_FEATURES),
             ]
         )
 
         classifier = LogisticRegression(
-            max_iter=1000,
-            class_weight="balanced",
-            random_state=RANDOM_STATE
+            max_iter=1000, class_weight="balanced", random_state=RANDOM_STATE
         )
 
         model_pipeline = Pipeline(
@@ -130,10 +101,7 @@ class ModelEvaluator:
     def print_report(self, y_test, y_pred):
         print(
             classification_report(
-                y_test,
-                y_pred,
-                target_names=["Non éligible", "Éligible"],
-                zero_division=0
+                y_test, y_pred, target_names=["Non éligible", "Éligible"], zero_division=0
             )
         )
 

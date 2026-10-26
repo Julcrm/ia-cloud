@@ -79,15 +79,9 @@ class BatchPredictionPipeline:
         orders_clean = DataCleaner.clean_orders_data(self.orders_source.load())
         DataValidator.validate_dataset(orders_clean)
 
-        batch_input = orders_clean.sample(
-            n=10,
-            random_state=RANDOM_STATE
-        )[FEATURE_COLUMNS]
+        batch_input = orders_clean.sample(n=10, random_state=RANDOM_STATE)[FEATURE_COLUMNS]
 
-        batch_predictions = BatchPredictor.batch_predict_orders(
-            batch_input,
-            loaded_model
-        )
+        batch_predictions = BatchPredictor.batch_predict_orders(batch_input, loaded_model)
 
         self.predictions_writer.export(batch_predictions)
 

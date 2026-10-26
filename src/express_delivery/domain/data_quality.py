@@ -1,7 +1,7 @@
 """Qualité des données : règles de bornes, validation et nettoyage (cellules 14 et 18)."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import pandas as pd
 
@@ -74,9 +74,7 @@ class DataValidator:
         missing_columns = required_columns - set(df.columns)
 
         if missing_columns:
-            raise ValueError(
-                f"Colonnes obligatoires absentes : {sorted(missing_columns)}"
-            )
+            raise ValueError(f"Colonnes obligatoires absentes : {sorted(missing_columns)}")
 
         if df["order_id"].duplicated().any():
             raise ValueError("Des identifiants de commande sont dupliqués.")
@@ -105,16 +103,10 @@ class DataCleaner:
         cleaned = df.copy()
 
         # Suppression des doublons sur l'identifiant métier
-        cleaned = cleaned.drop_duplicates(
-            subset=["order_id"],
-            keep="last"
-        )
+        cleaned = cleaned.drop_duplicates(subset=["order_id"], keep="last")
 
         # Conversion des dates
-        cleaned["order_date"] = pd.to_datetime(
-            cleaned["order_date"],
-            errors="coerce"
-        )
+        cleaned["order_date"] = pd.to_datetime(cleaned["order_date"], errors="coerce")
 
         # Suppression des lignes dont les champs essentiels sont invalides
         essential_columns = [

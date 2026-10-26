@@ -40,7 +40,7 @@ class FileModelRepository(ModelRepository):
                     "categorical_features": CATEGORICAL_FEATURES,
                 },
                 file,
-                indent=2
+                indent=2,
             )
 
         with open(MODEL_CARD_PATH, "w", encoding="utf-8") as file:

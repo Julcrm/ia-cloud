@@ -48,9 +48,13 @@ interactive sur <http://localhost:8000/docs>.
 | `uv run main.py train` | Entraîne le modèle, suit l'entraînement dans MLflow, sauvegarde les artefacts |
 | `uv run main.py predict-batch` | Charge le modèle, prédit un lot de commandes, écrit le CSV |
 | `API_KEY=... uv run uvicorn express_delivery.api.app:app` | Démarre l'API |
-| `uv run pytest` | Lance les tests de prédiction et de l'API |
-| `docker build -t ia-cloud .` | Construit l'image de l'API (modèle entraîné pendant le build) |
-| `docker run -e API_KEY=... -p 8000:8000 ia-cloud` | Lance l'API en conteneur |
+| `uv run pytest` | Lance les tests de prédiction, de l'API et de conformité au contrat |
+| `uv run ruff check .` | Vérifie le code (erreurs, imports, syntaxe) |
+| `uv run ruff format .` | Formate le code |
+| `docker build --target api -t ia-cloud-api .` | Construit l'image de l'API, sans mlflow (modèle entraîné pendant le build) |
+| `docker build --target train -t ia-cloud-train .` | Construit l'image d'entraînement, avec mlflow |
+| `docker run -e API_KEY=... -p 8000:8000 ia-cloud-api` | Lance l'API en conteneur |
+| `docker run --rm ia-cloud-train` | Entraîne le modèle ; le conteneur s'arrête à la fin |
 | `uv run mlflow ui` | Ouvre l'interface MLflow sur <http://localhost:5000> |
 
 ### Artefacts produits
@@ -62,6 +66,21 @@ artifacts/
 ├── metrics.json                    # métriques sur le jeu de test
 ├── model_card.json                 # résumé du modèle (cellule 55), servi par GET /v1/model
 └── batch_predictions.csv           # sortie de predict-batch
+```
+
+## Images publiées
+
+Le pipeline publie les deux images sur le registre GitHub (GHCR) après chaque fusion,
+jamais sur une pull request, et seulement si les tests, le démarrage et l'analyse de
+vulnérabilités sont au vert.
+
+| Image | Fusion dans `dev` | Fusion dans `main` |
+|-------|-------------------|--------------------|
+| `ghcr.io/julcrm/ia-cloud-api` | `dev`, `sha-<commit>` | `main`, `latest`, `sha-<commit>` |
+| `ghcr.io/julcrm/ia-cloud-train` | `dev`, `sha-<commit>` | `main`, `latest`, `sha-<commit>` |
+
+```bash
+docker pull ghcr.io/julcrm/ia-cloud-api:latest
 ```
 
 ## API
@@ -129,7 +148,7 @@ contrat de l'API et ADR : voir [CONTRIBUTING.md](CONTRIBUTING.md).
 | [ADR-0002](docs/adr/ADR-0002-stockage-artefacts-modele.pdf) | Artefacts du modèle | Dossiers versionnés sur S3 et `current.json` (pour l'instant : `artifacts/` local, modèle entraîné au build de l'image) |
 | [ADR-0003](docs/adr/ADR-0003-plateforme-deploiement.pdf) | Plateforme de déploiement | VPS netcup + Coolify |
 | [ADR-0004](docs/adr/ADR-0004-cloud-on-premise-local.pdf) | Cloud, on-premise ou local | Cloud IaaS pour test et prod, local pour le dev |
-| [ADR-0005](docs/adr/ADR-0005-strategie-deploiement.pdf) | Stratégie de déploiement | Rolling update de Coolify |
+| [ADR-0005](docs/adr/ADR-0005-strategie-deploiement.pdf) | Stratégie de déploiement | Rolling update de Coolify ; retour arrière par tag d'image GHCR `sha-<commit>` |
 | [ADR-0006](docs/adr/ADR-0006-securisation.pdf) | Sécurisation | Défense en profondeur, clé d'API sur `/v1/*` |
 
 ## Configuration

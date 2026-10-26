@@ -86,6 +86,8 @@ class ReadinessStatus(BaseModel):
 
 
 class Error(BaseModel):
-    error: str = Field(description="Code d'erreur stable, branchable côté client", examples=["validation_error"])
+    error: str = Field(
+        description="Code d'erreur stable, branchable côté client", examples=["validation_error"]
+    )
     message: str = Field(description="Message destiné à l'humain, non contractuel")
     details: list[str] | None = None
