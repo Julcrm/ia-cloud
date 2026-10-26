@@ -1,5 +1,5 @@
 # Pipeline : une pull request n'est fusionnée que si tout est au vert (CONTRIBUTING.md).
-# Actions figées par SHA de commit : un tag peut être déplacé (cf. CVE-2026-33634, trivy-action).
+# Actions figées par SHA de commit, un tag peut être déplacé
 name: CI
 
 on:
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   tests:
-    name: Tests et contrat
+    name: Lint, tests et contrat
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,6 +31,12 @@ jobs:
 
       - name: Dépendances
         run: uv sync --locked
+
+      - name: Lint (ruff check)
+        run: uv run ruff check --output-format github .
+
+      - name: Formatage (ruff format)
+        run: uv run ruff format --check --diff .
 
       - name: Tests (prédiction, API, conformité à openapi.yml)
         run: uv run pytest -v

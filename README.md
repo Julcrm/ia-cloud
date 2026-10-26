@@ -48,7 +48,9 @@ interactive sur <http://localhost:8000/docs>.
 | `uv run main.py train` | Entraîne le modèle, suit l'entraînement dans MLflow, sauvegarde les artefacts |
 | `uv run main.py predict-batch` | Charge le modèle, prédit un lot de commandes, écrit le CSV |
 | `API_KEY=... uv run uvicorn express_delivery.api.app:app` | Démarre l'API |
-| `uv run pytest` | Lance les tests de prédiction et de l'API |
+| `uv run pytest` | Lance les tests de prédiction, de l'API et de conformité au contrat |
+| `uv run ruff check .` | Vérifie le code (erreurs, imports, syntaxe) |
+| `uv run ruff format .` | Formate le code |
 | `docker build --target api -t ia-cloud-api .` | Construit l'image de l'API, sans mlflow (modèle entraîné pendant le build) |
 | `docker build --target train -t ia-cloud-train .` | Construit l'image d'entraînement, avec mlflow |
 | `docker run -e API_KEY=... -p 8000:8000 ia-cloud-api` | Lance l'API en conteneur |
