@@ -56,6 +56,27 @@ Les routes `/v1/*` exigent l'en-tête `X-API-Key` (401 sinon) ; les sondes `/hea
 restent ouvertes. Sans variable `API_KEY`, les routes `/v1/*` sont refusées et
 `/health/ready` répond 503.
 
+## Branches
+
+Gitflow simplifié : deux branches permanentes, des branches courtes pour le travail.
+
+| Branche | Rôle | Part de | Fusionne dans |
+|---------|------|---------|---------------|
+| `main` | Ce qui est déployé en production ; on n'y commite jamais directement | — | — |
+| `dev` | Intégration : la prochaine version, toujours fonctionnelle | `main` | `main` (fin de séance / livraison) |
+| `feature/<sujet>` | Une fonctionnalité, par ex. `feature/model-card` | `dev` | `dev` |
+| `hotfix/<sujet>` | Correction urgente de la production | `main` | `main` **et** `dev` |
+
+```bash
+git switch dev && git pull
+git switch -c feature/model-card          # travail, commits...
+git switch dev && git merge --no-ff feature/model-card
+git branch -d feature/model-card
+```
+
+Une livraison fusionne `dev` dans `main` (`git merge --no-ff dev`) et peut être marquée
+d'un tag, par ex. `git tag v1.1.0`.
+
 ## Architecture
 
 ```text
