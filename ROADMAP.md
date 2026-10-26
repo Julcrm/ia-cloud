@@ -9,8 +9,13 @@ Ce qui reste à faire, par ordre de priorité. Cocher une case quand c'est fait.
       (`docker login ghcr.io` avec ce jeton).
       Sans lui, Coolify ne peut pas télécharger les images, privées par défaut sur GHCR.
 - [ ] Passer l'application API en type **Docker Image** :
-      `ghcr.io/julcrm/ia-cloud-api:latest`, healthcheck `/health/ready` (rolling update,
-      ADR-0005). L'image déployée est celle testée par le pipeline, le VPS ne build plus.
+      `ghcr.io/julcrm/ia-cloud-api:sha-<commit>`, healthcheck `/health/ready` (rolling
+      update, ADR-0005). L'image déployée est celle testée par le pipeline, le VPS ne build
+      plus. Tag figé plutôt que `latest` : on sait toujours quelle version tourne.
+- [ ] **Rollback** (ADR-0005) : documenter puis tester la procédure. Bug métier en
+      production → retrouver le commit précédent (`git log main`), mettre son tag
+      `sha-<commit>` dans l'application Coolify, redéployer (rolling update, l'ancienne
+      version doit passer `/health/ready`). Secours : Configuration → Rollback de Coolify.
 - [ ] Options Docker de l'API dans Coolify : `--cap-drop ALL --security-opt no-new-privileges`
       (SECURITY.md).
 - [ ] Créer l'application d'entraînement : `ghcr.io/julcrm/ia-cloud-train:latest`, lancée
