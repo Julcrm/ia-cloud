@@ -716,7 +716,6 @@ dependencies = [
     { name = "duckdb" },
     { name = "fastapi" },
     { name = "joblib" },
-    { name = "mlflow" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "scikit-learn" },
@@ -728,13 +727,15 @@ dev = [
     { name = "httpx" },
     { name = "pytest" },
 ]
+train = [
+    { name = "mlflow" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "duckdb", specifier = ">=1.5.6" },
     { name = "fastapi", specifier = ">=0.142.2" },
     { name = "joblib", specifier = ">=1.6.0" },
-    { name = "mlflow", specifier = ">=3.16.1" },
     { name = "numpy", specifier = ">=2.5.3" },
     { name = "pandas", specifier = ">=3.0.6" },
     { name = "scikit-learn", specifier = ">=1.9.1" },
@@ -746,6 +747,7 @@ dev = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pytest", specifier = ">=9.1.1" },
 ]
+train = [{ name = "mlflow", specifier = ">=3.16.1" }]
 
 [[package]]
 name = "fastapi"

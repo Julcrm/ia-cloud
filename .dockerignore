@@ -1,0 +1,15 @@
+# Seuls pyproject.toml, uv.lock, main.py et src/ servent au build.
+.git/
+.venv/
+.idea/
+.pytest_cache/
+**/__pycache__/
+*.egg-info/
+artifacts/
+mlruns/
+mlflow.db
+data/
+.env
+*.ipynb
+docs/
+tests/

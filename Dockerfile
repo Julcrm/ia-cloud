@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# ── Dépendances et package, installés dans /app/.venv ──
+# ── Dépendances de l'API et package, installés dans /app/.venv (sans mlflow) ──
+# Les suites de tests livrées avec scipy, pandas, sklearn... sont retirées : ~100 Mo.
 FROM python:3.12-slim AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.7.7 /uv /bin/uv
@@ -15,18 +16,22 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-dev --no-install-project
+    uv sync --locked --no-default-groups --no-install-project
 
 COPY pyproject.toml uv.lock main.py ./
 COPY src/ src/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-editable
+    uv sync --locked --no-default-groups --no-editable \
+    && find /app/.venv -type d -name tests -prune -exec rm -rf {} +
 
 
 # ── Modèle : entraîné au build tant qu'il n'est pas lu sur S3 (ADR-0002, séance 3) ──
+# mlflow n'est ajouté que dans cette étape, l'image finale ne le contient pas.
 FROM builder AS model
 
-RUN /app/.venv/bin/python main.py train
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-default-groups --group train --no-editable \
+    && /app/.venv/bin/python main.py train
 
 
 # ── Image finale : API seule, sans uv, sans sources ni traces MLflow ──
