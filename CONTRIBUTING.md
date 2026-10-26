@@ -50,7 +50,8 @@ Un commit = un changement cohérent. Jamais de secret, de `.env` ni d'artefact
 
 Chaque pull request vers `dev` ou `main`, et chaque push sur ces deux branches, lance
 le pipeline GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) :
-tests et conformité au contrat `openapi.yml`, build des images `api` et `train`,
+lint et formatage (ruff), tests et conformité au contrat `openapi.yml`, build des
+images `api` et `train`,
 démarrage de l'API, analyse de vulnérabilités. **Une pull request n'est fusionnée que si le pipeline passe
 entièrement au vert.** Sinon, on corrige sur la même branche et on pousse à nouveau.
 
