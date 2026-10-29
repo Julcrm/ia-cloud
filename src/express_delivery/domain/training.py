@@ -125,7 +125,8 @@ class ModelCardBuilder:
             "test_rows": len(X_test),
             "metrics": metrics,
             "limitations": [
-                "Le jeu de données utilisé est synthétique.",
+                "La cible est simulée par une règle métier : les métriques ne mesurent pas "
+                "une performance réelle (ADR-0007).",
                 "La décision ne doit pas être utilisée sans validation des règles métier.",
                 "Les performances peuvent varier sur des données réelles.",
                 "Le modèle ne remplace pas une analyse des contraintes opérationnelles.",

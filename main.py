@@ -2,16 +2,19 @@
 
 import argparse
 
+from express_delivery.config import ERP_POSTGRES_HOST
 from express_delivery.infrastructure.dev.csv_predictions_writer import CsvPredictionsWriter
 from express_delivery.infrastructure.dev.file_model_repository import FileModelRepository
 from express_delivery.infrastructure.dev.synthetic_orders_source import SyntheticOrdersSource
 from express_delivery.infrastructure.mlflow.mlflow_model_trainer import MlflowModelTrainer
+from express_delivery.infrastructure.postgres.postgres_orders_source import PostgresOrdersSource
 from express_delivery.pipelines import BatchPredictionPipeline, TrainingPipeline
 
 
 def build_commands():
     """Seul endroit qui choisit les implémentations concrètes."""
-    orders_source = SyntheticOrdersSource()
+    # Commandes de l'ERP (ADR-0007) ; sans base configurée, données synthétiques.
+    orders_source = PostgresOrdersSource() if ERP_POSTGRES_HOST else SyntheticOrdersSource()
     model_repository = FileModelRepository()
 
     return {
