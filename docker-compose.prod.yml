@@ -1,0 +1,50 @@
+# Environnement de production (VPS, Coolify) : l'application seule.
+# PostgreSQL (base de l'ERP et catalogue DuckLake) et Garage sont des services partagés du VPS,
+# joints par les variables d'environnement définies dans Coolify (ADR-0006, ADR-0007).
+# Images testées par le pipeline, tag figé sha-<commit> (ADR-0005).
+
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  train:
+    <<: *hardening
+    image: ghcr.io/julcrm/ia-cloud-train:${IMAGE_TAG:?tag sha-<commit> obligatoire}
+    restart: "no"
+    environment:
+      ERP_POSTGRES_HOST: ${ERP_POSTGRES_HOST:?}
+      ERP_POSTGRES_PORT: ${ERP_POSTGRES_PORT:-5432}
+      ERP_POSTGRES_DB: ${ERP_POSTGRES_DB:-livraison_express}
+      ERP_POSTGRES_USER: ${ERP_POSTGRES_USER:?}
+      ERP_POSTGRES_PASSWORD: ${ERP_POSTGRES_PASSWORD:?}
+    volumes:
+      - artifacts:/app/artifacts
+
+  api:
+    <<: *hardening
+    image: ghcr.io/julcrm/ia-cloud-api:${IMAGE_TAG:?tag sha-<commit> obligatoire}
+    restart: unless-stopped
+    environment:
+      API_KEY: ${API_KEY:?}
+      DUCKLAKE_CATALOG: "ducklake:postgres:"
+      DUCKLAKE_DATA_PATH: ${DUCKLAKE_DATA_PATH:?}
+      POSTGRES_HOST: ${POSTGRES_HOST:?}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-ia_cloud}
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:?}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?}
+    expose:
+      - "8000"
+    volumes:
+      - artifacts:/app/artifacts:ro
+    depends_on:
+      train:
+        condition: service_completed_successfully
+
+# shortcut: modèle partagé par volume entre train et api, à remplacer par Garage + current.json (ADR-0002).
+volumes:
+  artifacts:

@@ -1,0 +1,65 @@
+# Environnement de test : tout tourne en local, ERP compris (ADR-0007).
+#   docker compose -f docker-compose.test.yml up --build
+# Ordre : base ERP -> simulateur (historique + 100 commandes live, puis s'arrête)
+#         -> entraînement sur l'ERP -> API avec le modèle obtenu.
+# Les services ERP viennent de tp4/, sans modification.
+
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  postgres:
+    extends:
+      file: tp4/docker-compose.erp.yml
+      service: postgres
+    ports: !reset []
+
+  erp-simulator:
+    extends:
+      file: tp4/docker-compose.erp.yml
+      service: erp-simulator
+    environment:
+      INTERVAL_SECONDS: 0
+      LIVE_ORDER_LIMIT: 11100
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  train:
+    <<: *hardening
+    build:
+      context: .
+      target: train
+    environment:
+      ERP_POSTGRES_HOST: postgres
+      ERP_POSTGRES_USER: livraison
+      ERP_POSTGRES_PASSWORD: livraison
+    volumes:
+      - artifacts:/app/artifacts
+    depends_on:
+      erp-simulator:
+        condition: service_completed_successfully
+
+  api:
+    <<: *hardening
+    build:
+      context: .
+      target: api
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/data:uid=1000,gid=1000
+    environment:
+      API_KEY: test
+    ports:
+      - "8000:8000"
+    volumes:
+      - artifacts:/app/artifacts:ro
+    depends_on:
+      train:
+        condition: service_completed_successfully
+
+volumes:
+  artifacts:
+  postgres_erp_data:

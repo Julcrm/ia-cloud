@@ -43,7 +43,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-default-groups --group train --no-editable \
     && find /app/.venv -type d -name tests -prune -exec rm -rf {} + \
     && useradd --create-home --uid 1000 app \
-    && chown app:app /app
+    && mkdir /app/artifacts \
+    && chown app:app /app /app/artifacts
 
 # Pas de Git dans l'image : mlflow ne cherche pas le commit du code.
 ENV PATH="/app/.venv/bin:$PATH" \
