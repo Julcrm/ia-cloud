@@ -35,7 +35,7 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 100
-extend-exclude = ["*.ipynb"] # notebook d'origine du cours, gardé tel quel
+extend-exclude = ["*.ipynb", "tp4"] # code fourni par le cours (notebook, simulateur ERP), gardé tel quel
 
 [tool.ruff.lint]
 # pycodestyle, pyflakes, ordre des imports, syntaxe moderne, bugs fréquents

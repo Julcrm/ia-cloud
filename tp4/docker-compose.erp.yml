@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: livraison_express
+      POSTGRES_USER: livraison
+      POSTGRES_PASSWORD: livraison
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_erp_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U livraison -d livraison_express"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  erp-simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile.erp-simulator
+    environment:
+      POSTGRES_DSN: postgresql://livraison:livraison@postgres:5432/livraison_express
+      BATCH_SIZE: ${BATCH_SIZE:-5}
+      INTERVAL_SECONDS: ${INTERVAL_SECONDS:-5}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      POSTGRES_HISTORY_ORDERS: ${POSTGRES_HISTORY_ORDERS:-10000}
+      RECENT_HISTORY_ORDERS: ${RECENT_HISTORY_ORDERS:-1000}
+      LIVE_ORDER_LIMIT: ${LIVE_ORDER_LIMIT:-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_erp_data:
