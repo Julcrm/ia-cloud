@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 
-# Deux images depuis ce fichier (ADR-0005 : une appli Coolify « Dockerfile » chacune) :
+# Trois images depuis ce fichier (ADR-0005 : une appli Coolify « Dockerfile » chacune) :
 #   docker build --target api   -t ia-cloud-api .     API, cible par défaut
 #   docker build --target train -t ia-cloud-train .   entraînement, lancé à la demande
+#   docker build --target orchestrator -t ia-cloud-orchestrator .   code server Dagster (réentraînement)
 
 # Image de base figée par version et par empreinte : un build donne toujours le même
 # système. À mettre à jour volontairement pour récupérer les correctifs de sécurité.
@@ -60,6 +61,28 @@ CMD ["python", "main.py", "train"]
 FROM train AS model
 
 RUN python main.py train
+
+
+# ── Réentraînement planifié : code server Dagster (gRPC :4000) pour le dagster-workspace du VPS ──
+# Les runs s'exécutent ici (DefaultRunLauncher) : mêmes dépendances que l'entraînement + dagster.
+FROM train AS orchestrator
+
+USER root
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-default-groups --group train --group orchestration --no-editable \
+    && find /app/.venv -type d -name tests -prune -exec rm -rf {} + \
+    && install -d -o app -g app /app/dagster_home
+
+COPY dagster.yaml /app/dagster_home/dagster.yaml
+
+ENV DAGSTER_HOME=/app/dagster_home
+
+USER 1000:1000
+
+EXPOSE 4000
+
+CMD ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "4000", "-m", "express_delivery.orchestration.definitions"]
 
 
 # ── API : sans uv, sans mlflow, sans pip, sans sources ni traces MLflow ──

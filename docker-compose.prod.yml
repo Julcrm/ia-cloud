@@ -1,5 +1,5 @@
 # Environnement de production (VPS, Coolify) : l'application seule.
-# PostgreSQL (base de l'ERP et catalogue DuckLake) et Garage sont des services partagés du VPS,
+# PostgreSQL (base de l'ERP, catalogue DuckLake, stockage Dagster) et Garage sont des services partagés du VPS,
 # joints par les variables d'environnement définies dans Coolify (ADR-0006, ADR-0007).
 # Images testées par le pipeline, tag figé sha-<commit> (ADR-0005).
 
@@ -8,11 +8,19 @@ x-hardening: &hardening
   security_opt: [no-new-privileges:true]
 
 services:
-  train:
+  # Code server Dagster (TP4 étape 6) : le dagster-workspace du VPS le charge en gRPC
+  # (workspace.yaml : host ia-cloud-dagster, port 4000) et réentraîne le modèle chaque nuit.
+  ia-cloud-dagster:
     <<: *hardening
-    image: ghcr.io/julcrm/ia-cloud-train:${IMAGE_TAG:?tag sha-<commit> obligatoire}
-    restart: "no"
+    image: ghcr.io/julcrm/ia-cloud-orchestrator:${IMAGE_TAG:?tag sha-<commit> obligatoire}
+    restart: always
+    expose:
+      - "4000"
     environment:
+      DAGSTER_POSTGRES_HOST: ${DAGSTER_POSTGRES_HOST:?}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:?}
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:?}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:?}
       ERP_POSTGRES_HOST: ${ERP_POSTGRES_HOST:?}
       ERP_POSTGRES_PORT: ${ERP_POSTGRES_PORT:-5432}
       ERP_POSTGRES_DB: ${ERP_POSTGRES_DB:-livraison_express}
@@ -20,6 +28,19 @@ services:
       ERP_POSTGRES_PASSWORD: ${ERP_POSTGRES_PASSWORD:?}
     volumes:
       - artifacts:/app/artifacts
+    # Socket simple : dagster api grpc-health-check chargerait Dagster à chaque test.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 4000), 3)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - coolify
 
   api:
     <<: *hardening
@@ -41,10 +62,19 @@ services:
       - "8000"
     volumes:
       - artifacts:/app/artifacts:ro
+    # Le code server monte le volume en premier : il appartient à l'utilisateur app, qui peut y écrire.
     depends_on:
-      train:
-        condition: service_completed_successfully
+      ia-cloud-dagster:
+        condition: service_healthy
+    networks:
+      - coolify
 
-# shortcut: modèle partagé par volume entre train et api, à remplacer par Garage + current.json (ADR-0002).
+# shortcut: modèle partagé par volume, relu par l'API à son redémarrage seulement ;
+# à remplacer par Garage + current.json relu par l'API (ADR-0002).
 volumes:
   artifacts:
+
+networks:
+  coolify:
+    external: true
+    name: coolify

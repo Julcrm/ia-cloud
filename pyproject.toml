@@ -26,9 +26,14 @@ dev = [
     "pyyaml>=6.0.3",
     "ruff>=0.17.2",
 ]
+# Dagster ne sert qu'au code server du réentraînement, sur la série du dagster-workspace du VPS.
+orchestration = [
+    "dagster==1.13.24",
+    "dagster-postgres==0.29.24",
+]
 
 [tool.uv]
-default-groups = ["train", "dev"]
+default-groups = ["train", "dev", "orchestration"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
