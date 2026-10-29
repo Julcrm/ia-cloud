@@ -1,0 +1,80 @@
+# Environnement de production (VPS, Coolify) : l'application seule.
+# PostgreSQL (base de l'ERP, catalogue DuckLake, stockage Dagster) et Garage sont des services partagés du VPS,
+# joints par les variables d'environnement définies dans Coolify (ADR-0006, ADR-0007).
+# Images testées par le pipeline, tag figé sha-<commit> (ADR-0005).
+
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  # Code server Dagster (TP4 étape 6) : le dagster-workspace du VPS le charge en gRPC
+  # (workspace.yaml : host ia-cloud-dagster, port 4000) et réentraîne le modèle chaque nuit.
+  ia-cloud-dagster:
+    <<: *hardening
+    image: ghcr.io/julcrm/ia-cloud-orchestrator:${IMAGE_TAG:?tag sha-<commit> obligatoire}
+    restart: always
+    expose:
+      - "4000"
+    environment:
+      DAGSTER_POSTGRES_HOST: ${DAGSTER_POSTGRES_HOST:?}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:?}
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:?}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:?}
+      ERP_POSTGRES_HOST: ${ERP_POSTGRES_HOST:?}
+      ERP_POSTGRES_PORT: ${ERP_POSTGRES_PORT:-5432}
+      ERP_POSTGRES_DB: ${ERP_POSTGRES_DB:-livraison_express}
+      ERP_POSTGRES_USER: ${ERP_POSTGRES_USER:?}
+      ERP_POSTGRES_PASSWORD: ${ERP_POSTGRES_PASSWORD:?}
+    volumes:
+      - artifacts:/app/artifacts
+    # Socket simple : dagster api grpc-health-check chargerait Dagster à chaque test.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 4000), 3)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - coolify
+
+  api:
+    <<: *hardening
+    image: ghcr.io/julcrm/ia-cloud-api:${IMAGE_TAG:?tag sha-<commit> obligatoire}
+    restart: unless-stopped
+    environment:
+      API_KEY: ${API_KEY:?}
+      DUCKLAKE_CATALOG: "ducklake:postgres:"
+      DUCKLAKE_DATA_PATH: ${DUCKLAKE_DATA_PATH:?}
+      POSTGRES_HOST: ${POSTGRES_HOST:?}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-ia_cloud}
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:?}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?}
+    expose:
+      - "8000"
+    volumes:
+      - artifacts:/app/artifacts:ro
+    # Le code server monte le volume en premier : il appartient à l'utilisateur app, qui peut y écrire.
+    depends_on:
+      ia-cloud-dagster:
+        condition: service_healthy
+    networks:
+      - coolify
+
+# shortcut: modèle partagé par volume, relu par l'API à son redémarrage seulement ;
+# à remplacer par Garage + current.json relu par l'API (ADR-0002).
+volumes:
+  artifacts:
+
+networks:
+  coolify:
+    external: true
+    name: coolify

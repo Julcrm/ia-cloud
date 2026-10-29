@@ -45,6 +45,13 @@ POSTGRES_DB = os.environ.get("POSTGRES_DB", "ia_cloud")
 POSTGRES_USER = os.environ.get("POSTGRES_USER", "")
 POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
 
+# Base PostgreSQL de l'ERP, source de l'entraînement (ADR-0007). Sans hôte : données synthétiques.
+ERP_POSTGRES_HOST = os.environ.get("ERP_POSTGRES_HOST", "")
+ERP_POSTGRES_PORT = int(os.environ.get("ERP_POSTGRES_PORT", "5432"))
+ERP_POSTGRES_DB = os.environ.get("ERP_POSTGRES_DB", "livraison_express")
+ERP_POSTGRES_USER = os.environ.get("ERP_POSTGRES_USER", "")
+ERP_POSTGRES_PASSWORD = os.environ.get("ERP_POSTGRES_PASSWORD", "")
+
 # Stockage S3 (Garage), lu seulement si DUCKLAKE_DATA_PATH commence par "s3://".
 # Garage refuse une signature sans région : us-east-1.
 S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL", "http://localhost:3900")

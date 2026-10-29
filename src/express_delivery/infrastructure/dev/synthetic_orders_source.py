@@ -4,6 +4,48 @@ import pandas as pd
 from express_delivery.abstractions.orders_source import OrdersSource
 
 
+def simulate_express_eligibility(data, rng):
+    """Décision métier simulée : l'ERP comme le jeu synthétique n'ont pas de cible."""
+    # Coefficient de difficulté lié à la zone de livraison
+    zone_penalty = data["delivery_zone"].map(
+        {
+            "centre": 0,
+            "proche_banlieue": 0.10,
+            "banlieue": 0.25,
+            "rurale": 0.45,
+        }
+    )
+
+    weather_penalty = data["weather"].map(
+        {
+            "normal": 0,
+            "pluie": 0.10,
+            "neige": 0.25,
+            "orage": 0.30,
+        }
+    )
+
+    customer_bonus = (data["customer_type"] == "premium").astype(int) * 0.15
+
+    # Score latent simulant une décision métier
+    score = (
+        2.5
+        - 0.18 * data["distance_km"]
+        - 0.035 * data["preparation_time_min"]
+        - 0.035 * data["weight_kg"]
+        - zone_penalty
+        - weather_penalty
+        + 1.8 * data["stock_available"]
+        + 1.3 * data["carrier_capacity"]
+        + customer_bonus
+        - 0.40 * data["weekend"]
+        - 0.08 * np.maximum(data["hour"] - 18, 0)
+    )
+
+    probability = 1 / (1 + np.exp(-score))
+    return rng.binomial(1, probability)
+
+
 class SyntheticOrdersSource(OrdersSource):
     """Commandes fictives générées localement (cellule 8)."""
 
@@ -49,45 +91,7 @@ class SyntheticOrdersSource(OrdersSource):
             }
         )
 
-        # Coefficient de difficulté lié à la zone de livraison
-        zone_penalty = data["delivery_zone"].map(
-            {
-                "centre": 0,
-                "proche_banlieue": 0.10,
-                "banlieue": 0.25,
-                "rurale": 0.45,
-            }
-        )
-
-        weather_penalty = data["weather"].map(
-            {
-                "normal": 0,
-                "pluie": 0.10,
-                "neige": 0.25,
-                "orage": 0.30,
-            }
-        )
-
-        customer_bonus = (data["customer_type"] == "premium").astype(int) * 0.15
-
-        # Score latent simulant une décision métier
-        score = (
-            2.5
-            - 0.18 * data["distance_km"]
-            - 0.035 * data["preparation_time_min"]
-            - 0.035 * data["weight_kg"]
-            - zone_penalty
-            - weather_penalty
-            + 1.8 * data["stock_available"]
-            + 1.3 * data["carrier_capacity"]
-            + customer_bonus
-            - 0.40 * data["weekend"]
-            - 0.08 * np.maximum(data["hour"] - 18, 0)
-        )
-
-        probability = 1 / (1 + np.exp(-score))
-
-        data["express_eligible"] = rng.binomial(1, probability)
+        data["express_eligible"] = simulate_express_eligibility(data, rng)
 
         return data
 
