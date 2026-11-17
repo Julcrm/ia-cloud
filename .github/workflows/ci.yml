@@ -161,3 +161,39 @@ jobs:
           # Provenance et SBOM : d'où vient l'image et ce qu'elle contient.
           provenance: mode=max
           sbom: true
+
+  # Déploiement prod automatique (ADR-0005) : fixe IMAGE_TAG sur le sha qu'on vient de
+  # publier, puis déclenche le redeploy Coolify. L'API Coolify n'est joignable que par
+  # l'IP Tailscale du VPS (non publique), d'où le nœud CI éphémère tag:ci.
+  deploy:
+    name: Déploiement Coolify
+    needs: publish
+    # Ignoré tant que COOLIFY_APP_UUID n'est pas défini : le pipeline reste vert avant config.
+    if: >-
+      github.ref == 'refs/heads/main' && github.event_name == 'push'
+      && vars.COOLIFY_APP_UUID != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write # jeton OIDC pour rejoindre le tailnet, aucun secret Tailscale longue durée
+    env:
+      COOLIFY_API: http://100.125.33.49:8000/api/v1 # IP Tailscale du VPS
+      UUID: ${{ vars.COOLIFY_APP_UUID }}
+    steps:
+      - name: Rejoindre le tailnet (nœud éphémère tag:ci)
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+          ping: 100.125.33.49
+
+      - name: IMAGE_TAG = sha publié, puis redeploy
+        run: |
+          TAG="sha-${GITHUB_SHA:0:7}" # même format que docker/metadata-action type=sha
+          curl -fsS --max-time 30 -X PATCH "$COOLIFY_API/applications/$UUID/envs" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"IMAGE_TAG\",\"value\":\"$TAG\"}"
+          curl -fsS --max-time 30 "$COOLIFY_API/deploy?uuid=$UUID&force=false" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
