@@ -6,6 +6,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # dagster et dagster-postgres sont épinglés en version exacte et couplés
+    # (dagster-postgres X exige dagster Y) : les bumper ensemble, sinon Dependabot
+    # échoue à les résoudre un par un (dependency_file_not_resolvable).
+    groups:
+      dagster:
+        patterns:
+          - "dagster*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
