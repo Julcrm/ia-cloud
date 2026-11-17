@@ -61,6 +61,10 @@ class FileModelRepository(ModelRepository):
         with open(MODEL_CARD_PATH, encoding="utf-8") as file:
             return json.load(file)
 
+    def current_version(self):
+        # Pas de versions multiples en local : recharger le modèle = redémarrer.
+        return MODEL_VERSION
+
     @staticmethod
     def _check_features():
         """Refuse un modèle entraîné sur d'autres variables que celles du code."""

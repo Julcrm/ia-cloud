@@ -10,7 +10,6 @@ from datetime import date
 @dataclass(frozen=True)
 class SimulationConfig:
     postgres_dsn: str
-    mongo_uri: str
     batch_size: int = 5
     interval_seconds: float = 5.0
     postgres_old_history_orders: int = 10_000
@@ -23,7 +22,6 @@ class SimulationConfig:
     def from_environment(cls) -> SimulationConfig:
         return cls(
             postgres_dsn=os.environ["POSTGRES_DSN"],
-            mongo_uri=os.getenv("MONGO_URI", ""),
             batch_size=int(os.getenv("BATCH_SIZE", "5")),
             interval_seconds=float(os.getenv("INTERVAL_SECONDS", "5")),
             postgres_old_history_orders=int(os.getenv("POSTGRES_HISTORY_ORDERS", "10000")),

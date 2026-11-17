@@ -15,6 +15,7 @@ dependencies = [
     "fastapi>=0.142.2",
     "uvicorn>=0.54.0",
     "duckdb>=1.5.6",
+    "boto3>=1.40.0",
 ]
 
 # mlflow ne sert qu'à l'entraînement : l'image de l'API ne l'installe pas.

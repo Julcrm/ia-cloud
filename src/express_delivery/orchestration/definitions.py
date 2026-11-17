@@ -13,8 +13,8 @@ from dagster import (
     define_asset_job,
 )
 
-from express_delivery.infrastructure.dev.file_model_repository import FileModelRepository
 from express_delivery.infrastructure.mlflow.mlflow_model_trainer import MlflowModelTrainer
+from express_delivery.infrastructure.model_repository_factory import build_model_repository
 from express_delivery.infrastructure.postgres.postgres_orders_source import PostgresOrdersSource
 from express_delivery.pipelines import TrainingPipeline
 
@@ -22,7 +22,7 @@ from express_delivery.pipelines import TrainingPipeline
 @asset(description="Modèle d'éligibilité express entraîné sur les commandes de l'ERP (ADR-0007).")
 def express_delivery_model() -> MaterializeResult:
     model_card = TrainingPipeline(
-        PostgresOrdersSource(), MlflowModelTrainer(), FileModelRepository()
+        PostgresOrdersSource(), MlflowModelTrainer(), build_model_repository()
     ).run()
     return MaterializeResult(
         metadata={

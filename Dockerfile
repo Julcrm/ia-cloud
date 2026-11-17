@@ -10,9 +10,20 @@
 ARG PYTHON_IMAGE=python:3.12.15-slim-trixie@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
 
 
+# ── Base commune : correctifs de sécurité OS pas encore dans l'image figée ──
+# Partagée par toutes les cibles pour que les images API et Dagster soient scannées propres.
+# shortcut: seuls apt et zlib1g sont mis à niveau (CVE signalées par Trivy) ; ajouter un paquet
+# ici quand Trivy en signale un nouveau, ou bumper le digest de PYTHON_IMAGE quand il les corrige.
+FROM ${PYTHON_IMAGE} AS base
+
+RUN apt-get update \
+    && apt-get install -y --only-upgrade apt zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
+
 # ── Dépendances de l'API et package, installés dans /app/.venv (sans mlflow) ──
 # Les suites de tests livrées avec scipy, pandas, sklearn... sont retirées : ~100 Mo.
-FROM ${PYTHON_IMAGE} AS builder
+FROM base AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:0.7.7 /uv /bin/uv
 
@@ -86,7 +97,7 @@ CMD ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "4000", "-m", "express_del
 
 
 # ── API : sans uv, sans mlflow, sans pip, sans sources ni traces MLflow ──
-FROM ${PYTHON_IMAGE} AS api
+FROM base AS api
 
 # pip ne sert pas à l'exécution et porte la plupart des vulnérabilités de l'image de base.
 RUN python -m pip uninstall --yes pip \
