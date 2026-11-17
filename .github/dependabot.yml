@@ -1,0 +1,18 @@
+# PR automatiques de mise à jour. Complète Trivy (qui bloque le build sur les CVE de
+# l'image) : Dependabot propose les bumps, Trivy reste le portail de sécurité.
+version: 2
+updates:
+  - package-ecosystem: "uv" # pyproject.toml + uv.lock
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker" # image de base du Dockerfile (apt, zlib1g...)
+    directory: "/"
+    schedule:
+      interval: "weekly"

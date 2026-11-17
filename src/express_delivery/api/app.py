@@ -1,4 +1,4 @@
-"""API HTTP, contrat : openapi.yml (opérations de la séance 1).
+"""API HTTP, contrat : openapi.yml (opérations des séances 1 et 3).
 
 Lancement depuis la racine du projet :
     uv run uvicorn express_delivery.api.app:app
@@ -18,6 +18,7 @@ from express_delivery.abstractions.model_repository import ModelRepository
 from express_delivery.api.schemas import (
     Error,
     HealthStatus,
+    ModelCard,
     OrderAccepted,
     OrderFeatures,
     Prediction,
@@ -25,8 +26,8 @@ from express_delivery.api.schemas import (
 )
 from express_delivery.config import API_KEY, MODEL_VERSION, PROJECT_NAME
 from express_delivery.domain.prediction import OrderEligibilityPredictor
-from express_delivery.infrastructure.dev.file_model_repository import FileModelRepository
 from express_delivery.infrastructure.ducklake.ducklake_order_store import DuckLakeOrderStore
+from express_delivery.infrastructure.model_repository_factory import build_model_repository
 
 
 class ApiError(Exception):
@@ -97,10 +98,30 @@ router = APIRouter()
     tags=["health"],
     operation_id="getHealth",
     summary="Sonde de vivacité",
+    description=(
+        "Répond 200 si le processus est vivant. Ne doit jamais dépendre d'une brique externe."
+    ),
     openapi_extra={"x-session": 1},
 )
 def get_health() -> HealthStatus:
     return HealthStatus(status="ok", service=PROJECT_NAME, version=MODEL_VERSION)
+
+
+def refresh_model(app):
+    """Recharge le modèle si current.json pointe une autre version (ADR-0002), sans redémarrer.
+
+    Déclenché par la sonde readiness, que l'orchestrateur appelle déjà régulièrement :
+    pas de tâche de fond. Toute erreur laisse le modèle courant en place.
+    """
+    version = try_or_none(app.state.model_repository.current_version)
+    if version is None or version == app.state.model_version:
+        return
+    model = try_or_none(app.state.model_repository.load)
+    if model is None:
+        return
+    app.state.model = model
+    app.state.model_card = try_or_none(app.state.model_repository.load_model_card)
+    app.state.model_version = version
 
 
 @router.get(
@@ -108,10 +129,16 @@ def get_health() -> HealthStatus:
     tags=["health"],
     operation_id="getReadiness",
     summary="Sonde de disponibilité",
+    description=(
+        "Répond 200 uniquement si le service est capable de répondre à une prédiction\n"
+        "(modèle chargé, dépendances joignables). C'est cette sonde qu'un orchestrateur\n"
+        "utilise pour router le trafic."
+    ),
     responses={503: {"model": ReadinessStatus, "description": "Le service n'est pas prêt"}},
     openapi_extra={"x-session": 1},
 )
 def get_readiness(request: Request) -> ReadinessStatus:
+    refresh_model(request.app)
     checks = {
         "model": "loaded" if request.app.state.model is not None else "not_loaded",
         "order_store": "unreachable",
@@ -139,6 +166,10 @@ def get_readiness(request: Request) -> ReadinessStatus:
     tags=["orders"],
     operation_id="createOrder",
     summary="Enregistrer une commande à prédire",
+    description=(
+        "Collecte de données : la commande est persistée via votre `OrderStore` et mise en file\n"
+        "d'attente pour prédiction. La réponse est immédiate, la prédiction est asynchrone."
+    ),
     responses={
         422: {"model": Error, "description": "Commande invalide"},
         500: {"model": Error, "description": "Erreur interne"},
@@ -150,7 +181,9 @@ def create_order(
 ) -> OrderAccepted:
     order_store = request.app.state.order_store
     if order_store is None:
-        raise ApiError(500, "order_store_unavailable", "Le stockage des commandes est indisponible.")
+        raise ApiError(
+            500, "order_store_unavailable", "Le stockage des commandes est indisponible."
+        )
 
     order_data = with_order_id(order)
     order_store.add(order_data)
@@ -170,7 +203,9 @@ def create_order(
 def get_order(order_id: str, request: Request) -> OrderFeatures:
     order_store = request.app.state.order_store
     if order_store is None:
-        raise ApiError(500, "order_store_unavailable", "Le stockage des commandes est indisponible.")
+        raise ApiError(
+            500, "order_store_unavailable", "Le stockage des commandes est indisponible."
+        )
 
     order = order_store.get(order_id)
     if order is None:
@@ -183,6 +218,7 @@ def get_order(order_id: str, request: Request) -> OrderFeatures:
     tags=["predictions"],
     operation_id="createPrediction",
     summary="Prédire l'éligibilité express d'une commande",
+    description="Prédiction synchrone. C'est l'implémentation HTTP de la cellule 34 du notebook.",
     responses={
         422: {"model": Error, "description": "Commande invalide"},
         503: {"model": Error, "description": "Modèle indisponible"},
@@ -196,12 +232,31 @@ def create_prediction(order: OrderFeatures, request: Request) -> Prediction:
     return predict(with_order_id(order), model)
 
 
+@router.get(
+    "/v1/model",
+    tags=["model"],
+    operation_id="getModelCard",
+    summary="Métadonnées et métriques du modèle en service",
+    description="Implémentation HTTP de la cellule 55 du notebook (model card).",
+    responses={200: {"description": "Model card du modèle en service"}},
+    openapi_extra={"x-session": 3},
+)
+def get_model_card(request: Request) -> ModelCard:
+    # 503 non déclaré : le contrat ne prévoit que 200, comme pour le 401 du middleware.
+    model_card = request.app.state.model_card
+    if request.app.state.model is None or model_card is None:
+        raise ApiError(503, "model_unavailable", "Aucun modèle n'est chargé.")
+    return ModelCard(**model_card)
+
+
 def create_app(build_order_store, model_repository: ModelRepository, api_key) -> FastAPI:
     """Seul endroit de l'API qui choisit les implémentations concrètes."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.model = try_or_none(model_repository.load)
+        app.state.model_card = try_or_none(model_repository.load_model_card)
+        app.state.model_version = try_or_none(model_repository.current_version)
         app.state.order_store = try_or_none(build_order_store)
         yield
 
@@ -212,6 +267,7 @@ def create_app(build_order_store, model_repository: ModelRepository, api_key) ->
         lifespan=lifespan,
     )
     app.state.api_key = api_key
+    app.state.model_repository = model_repository
     app.include_router(router)
 
     # Middleware et non dépendance FastAPI : la clé n'apparaît pas dans /openapi.json,
@@ -243,4 +299,4 @@ def create_app(build_order_store, model_repository: ModelRepository, api_key) ->
     return app
 
 
-app = create_app(DuckLakeOrderStore, FileModelRepository(), API_KEY)
+app = create_app(DuckLakeOrderStore, build_model_repository(), API_KEY)

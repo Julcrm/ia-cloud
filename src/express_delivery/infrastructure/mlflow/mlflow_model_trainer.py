@@ -40,9 +40,7 @@ class MlflowModelTrainer(ModelTrainer):
                 mlflow.log_metric(metric_name, metric_value)
 
             mlflow.sklearn.log_model(
-                model_pipeline,
-                name="model",
-                skops_trusted_types=["numpy.dtype"]
+                model_pipeline, name="model", skops_trusted_types=["numpy.dtype"]
             )
 
             run_id = run.info.run_id

@@ -29,6 +29,7 @@ FEATURE_COLUMNS = [
 
 MODEL_PATH = ARTIFACTS_DIR / "express_delivery_model.joblib"
 FEATURES_PATH = ARTIFACTS_DIR / "features.json"
+MODEL_CARD_PATH = ARTIFACTS_DIR / "model_card.json"
 
 PREDICTIONS_PATH = ARTIFACTS_DIR / "batch_predictions.csv"
 
@@ -44,12 +45,22 @@ POSTGRES_DB = os.environ.get("POSTGRES_DB", "ia_cloud")
 POSTGRES_USER = os.environ.get("POSTGRES_USER", "")
 POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
 
+# Base PostgreSQL de l'ERP, source de l'entraînement (ADR-0007). Sans hôte : données synthétiques.
+ERP_POSTGRES_HOST = os.environ.get("ERP_POSTGRES_HOST", "")
+ERP_POSTGRES_PORT = int(os.environ.get("ERP_POSTGRES_PORT", "5432"))
+ERP_POSTGRES_DB = os.environ.get("ERP_POSTGRES_DB", "livraison_express")
+ERP_POSTGRES_USER = os.environ.get("ERP_POSTGRES_USER", "")
+ERP_POSTGRES_PASSWORD = os.environ.get("ERP_POSTGRES_PASSWORD", "")
+
 # Stockage S3 (Garage), lu seulement si DUCKLAKE_DATA_PATH commence par "s3://".
 # Garage refuse une signature sans région : us-east-1.
 S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL", "http://localhost:3900")
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 AWS_DEFAULT_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+
+# Artefacts du modèle sur S3/Garage (ADR-0002). Sans bucket : fichiers locaux (dev).
+MODEL_S3_BUCKET = os.environ.get("MODEL_S3_BUCKET", "")
 
 # Clé exigée sur les routes /v1/* (ADR-0006). Sans valeur, ces routes sont refusées.
 API_KEY = os.environ.get("API_KEY")

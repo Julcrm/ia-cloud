@@ -12,17 +12,40 @@ dependencies = [
     "numpy>=2.5.3",
     "scikit-learn>=1.9.1",
     "joblib>=1.6.0",
-    "mlflow>=3.16.1",
     "fastapi>=0.142.2",
     "uvicorn>=0.54.0",
     "duckdb>=1.5.6",
+    "boto3>=1.40.0",
 ]
 
+# mlflow ne sert qu'à l'entraînement : l'image de l'API ne l'installe pas.
 [dependency-groups]
-dev = ["pytest>=9.1.1"]
+train = ["mlflow>=3.16.1"]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pyyaml>=6.0.3",
+    "ruff>=0.17.2",
+]
+# Dagster ne sert qu'au code server du réentraînement, sur la série du dagster-workspace du VPS.
+orchestration = [
+    "dagster==1.13.24",
+    "dagster-postgres==0.29.24",
+]
+
+[tool.uv]
+default-groups = ["train", "dev", "orchestration"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["*.ipynb", "tp4"] # code fourni par le cours (notebook, simulateur ERP), gardé tel quel
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, ordre des imports, syntaxe moderne, bugs fréquents
+select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

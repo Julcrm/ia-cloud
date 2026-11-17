@@ -37,9 +37,7 @@ def run_prediction_tests(model):
 
     try:
         OrderEligibilityPredictor.predict_order_eligibility(invalid_order, model)
-        raise AssertionError(
-            "Une variable obligatoire absente aurait dû provoquer une erreur."
-        )
+        raise AssertionError("Une variable obligatoire absente aurait dû provoquer une erreur.")
     except ValueError:
         pass
 
@@ -67,7 +65,7 @@ def loaded_model(model_pipeline, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     model_repository = FileModelRepository()
-    model_repository.save(model_pipeline, metrics={})
+    model_repository.save(model_pipeline, metrics={}, model_card={})
 
     return model_repository.load()
 

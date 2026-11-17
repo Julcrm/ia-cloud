@@ -9,15 +9,12 @@ from express_delivery.config import DEFAULT_THRESHOLD, FEATURE_COLUMNS, MODEL_VE
 
 
 class EligibilityRules:
-
     @staticmethod
     def ensure_features(available_features, error_label):
         missing_features = set(FEATURE_COLUMNS) - set(available_features)
 
         if missing_features:
-            raise ValueError(
-                f"{error_label} : {sorted(missing_features)}"
-            )
+            raise ValueError(f"{error_label} : {sorted(missing_features)}")
 
     @staticmethod
     def is_eligible(probability, threshold):
@@ -53,9 +50,7 @@ class OrderEligibilityPredictor:
         """
         EligibilityRules.ensure_features(order_data.keys(), "Variables manquantes")
 
-        input_df = pd.DataFrame(
-            [{feature: order_data[feature] for feature in FEATURE_COLUMNS}]
-        )
+        input_df = pd.DataFrame([{feature: order_data[feature] for feature in FEATURE_COLUMNS}])
 
         probability = float(model.predict_proba(input_df)[0, 1])
         eligible = EligibilityRules.is_eligible(probability, threshold)
@@ -65,7 +60,7 @@ class OrderEligibilityPredictor:
             "decision": EligibilityRules.to_decision(eligible),
             "probability": round(probability, 4),
             "model_version": MODEL_VERSION,
-            "prediction_timestamp": datetime.utcnow().isoformat()
+            "prediction_timestamp": datetime.utcnow().isoformat(),
         }
 
 
@@ -77,21 +72,15 @@ class BatchPredictor:
         """
         Réalise une prédiction batch sur plusieurs commandes.
         """
-        EligibilityRules.ensure_features(
-            input_df.columns, "Variables manquantes dans le batch"
-        )
+        EligibilityRules.ensure_features(input_df.columns, "Variables manquantes dans le batch")
 
         result = input_df.copy()
-        result["eligibility_probability"] = model.predict_proba(
-            input_df[FEATURE_COLUMNS]
-        )[:, 1]
+        result["eligibility_probability"] = model.predict_proba(input_df[FEATURE_COLUMNS])[:, 1]
 
         result["express_eligible"] = EligibilityRules.is_eligible(
             result["eligibility_probability"], threshold
         ).astype(int)
 
-        result["decision"] = EligibilityRules.to_decision(
-            result["express_eligible"] == 1
-        )
+        result["decision"] = EligibilityRules.to_decision(result["express_eligible"] == 1)
 
         return result
