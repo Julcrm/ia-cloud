@@ -2,7 +2,7 @@
 #   docker compose -f docker-compose.test.yml up --build
 # Ordre : base ERP -> simulateur (historique + 100 commandes live, puis s'arrête)
 #         -> entraînement sur l'ERP -> API avec le modèle obtenu.
-# Les services ERP viennent de tp4/, sans modification.
+# Les services ERP viennent de erp-simulator/, sans modification.
 
 x-hardening: &hardening
   cap_drop: [ALL]
@@ -11,13 +11,13 @@ x-hardening: &hardening
 services:
   postgres:
     extends:
-      file: tp4/docker-compose.erp.yml
+      file: erp-simulator/docker-compose.erp.yml
       service: postgres
     ports: !reset []
 
   erp-simulator:
     extends:
-      file: tp4/docker-compose.erp.yml
+      file: erp-simulator/docker-compose.erp.yml
       service: erp-simulator
     environment:
       INTERVAL_SECONDS: 0
