@@ -59,6 +59,9 @@ AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 AWS_DEFAULT_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
+# Artefacts du modèle sur S3/Garage (ADR-0002). Sans bucket : fichiers locaux (dev).
+MODEL_S3_BUCKET = os.environ.get("MODEL_S3_BUCKET", "")
+
 # Clé exigée sur les routes /v1/* (ADR-0006). Sans valeur, ces routes sont refusées.
 API_KEY = os.environ.get("API_KEY")
 

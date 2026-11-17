@@ -15,3 +15,7 @@ class ModelRepository(ABC):
     @abstractmethod
     def load_model_card(self):
         """Relit la model card du modèle sauvegardé."""
+
+    @abstractmethod
+    def current_version(self):
+        """Version servie, sans télécharger le modèle (pour le rechargement à chaud)."""

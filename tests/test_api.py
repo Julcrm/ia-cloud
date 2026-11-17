@@ -24,9 +24,10 @@ MODEL_CARD = {
 
 
 class InMemoryModelRepository(ModelRepository):
-    def __init__(self, model, model_card):
+    def __init__(self, model, model_card, version="1.0.0"):
         self.model = model
         self.model_card = model_card
+        self.version = version
 
     def save(self, model_pipeline, metrics, model_card):
         self.model, self.model_card = model_pipeline, model_card
@@ -40,6 +41,9 @@ class InMemoryModelRepository(ModelRepository):
         if self.model_card is None:
             raise FileNotFoundError("aucune model card")
         return self.model_card
+
+    def current_version(self):
+        return self.version
 
 
 def client_for(model_repository):
@@ -74,3 +78,17 @@ def test_model_card_requires_api_key():
         response = client.get("/v1/model", headers={"X-API-Key": "mauvaise"})
 
     assert response.status_code == 401
+
+
+def test_model_hot_reloads_when_current_version_changes():
+    repo = InMemoryModelRepository(object(), MODEL_CARD, version="1.0.0")
+    with client_for(repo) as client:
+        assert client.get("/v1/model").json()["model_version"] == "1.0.0"
+
+        # Nouvelle version publiée (current.json flip) : l'API doit la prendre sans redémarrer.
+        repo.model = object()
+        repo.model_card = {**MODEL_CARD, "model_version": "1.1.0"}
+        repo.version = "1.1.0"
+
+        client.get("/health/ready")  # la sonde déclenche le rechargement
+        assert client.get("/v1/model").json()["model_version"] == "1.1.0"

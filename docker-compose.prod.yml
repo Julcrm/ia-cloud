@@ -7,6 +7,14 @@ x-hardening: &hardening
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
 
+# Artefacts du modèle sur Garage (ADR-0002) : écrits par Dagster, lus par l'API.
+x-s3-env: &s3-env
+  S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:?}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+  MODEL_S3_BUCKET: ${MODEL_S3_BUCKET:?}
+
 services:
   # Code server Dagster (TP4 étape 6) : le dagster-workspace du VPS le charge en gRPC
   # (workspace.yaml : host ia-cloud-dagster, port 4000) et réentraîne le modèle chaque nuit.
@@ -17,6 +25,7 @@ services:
     expose:
       - "4000"
     environment:
+      <<: *s3-env
       DAGSTER_POSTGRES_HOST: ${DAGSTER_POSTGRES_HOST:?}
       DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:?}
       DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:?}
@@ -26,8 +35,6 @@ services:
       ERP_POSTGRES_DB: ${ERP_POSTGRES_DB:-livraison_express}
       ERP_POSTGRES_USER: ${ERP_POSTGRES_USER:?}
       ERP_POSTGRES_PASSWORD: ${ERP_POSTGRES_PASSWORD:?}
-    volumes:
-      - artifacts:/app/artifacts
     # Socket simple : dagster api grpc-health-check chargerait Dagster à chaque test.
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 4000), 3)"]
@@ -47,6 +54,7 @@ services:
     image: ghcr.io/julcrm/ia-cloud-api:${IMAGE_TAG:?tag sha-<commit> obligatoire}
     restart: unless-stopped
     environment:
+      <<: *s3-env
       API_KEY: ${API_KEY:?}
       DUCKLAKE_CATALOG: "ducklake:postgres:"
       DUCKLAKE_DATA_PATH: ${DUCKLAKE_DATA_PATH:?}
@@ -55,24 +63,12 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-ia_cloud}
       POSTGRES_USER: ${POSTGRES_USER:?}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
-      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:?}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?}
     expose:
       - "8000"
-    volumes:
-      - artifacts:/app/artifacts:ro
-    # Le code server monte le volume en premier : il appartient à l'utilisateur app, qui peut y écrire.
-    depends_on:
-      ia-cloud-dagster:
-        condition: service_healthy
+    # Pas de dépendance à Dagster : l'API lit le modèle depuis Garage (ADR-0002) et reste
+    # not_ready tant que current.json n'existe pas ; la sonde readiness le relit sans redémarrer.
     networks:
       - coolify
-
-# shortcut: modèle partagé par volume, relu par l'API à son redémarrage seulement ;
-# à remplacer par Garage + current.json relu par l'API (ADR-0002).
-volumes:
-  artifacts:
 
 networks:
   coolify:

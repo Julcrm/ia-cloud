@@ -26,8 +26,9 @@ Ce qui reste à faire, par ordre de priorité. Cocher une case quand c'est fait.
 - [ ] Ajouter la code location au `workspace.yaml` du repo dagster-workspace
       (`host: ia-cloud-dagster`, `port: 4000`, `location_name: ia_cloud`).
 - [ ] Variables `DAGSTER_POSTGRES_*` dans Coolify, les mêmes que le dagster-workspace.
-- [ ] Premier déploiement : lancer `retrain_model` à la main depuis Dagster, puis redémarrer
-      l'API (le volume `artifacts` est vide, l'API reste `not_ready` jusque-là).
+- [ ] Premier déploiement : lancer `retrain_model` à la main depuis Dagster. Tant qu'aucun
+      `current.json` n'existe sur Garage, l'API reste `not_ready` ; elle le charge ensuite sans
+      redémarrage (sonde readiness). Prévoir `MODEL_S3_BUCKET` + creds S3 dans les variables Coolify.
 - [ ] ADR : réentraînement planifié par Dagster (remplace « entraînement en tâche séparée »).
 
 ## GitHub
@@ -38,10 +39,12 @@ Ce qui reste à faire, par ordre de priorité. Cocher une case quand c'est fait.
 
 ## Modèle
 
-- [ ] **Artefacts du modèle sur Garage**, dossiers versionnés et `current.json` (ADR-0002) :
-      l'API relit le modèle courant sans redémarrer, l'image API ne contient plus de modèle.
-      Prioritaire : aujourd'hui l'API ne voit le modèle réentraîné qu'à son redémarrage
-      (volume partagé, `shortcut:` dans `docker-compose.prod.yml`).
+- [x] **Artefacts du modèle sur Garage**, dossiers versionnés et `current.json` (ADR-0002) :
+      `S3ModelRepository` (dossiers `models/express-delivery/<version>/`), l'API relit le modèle
+      courant sans redémarrer (la sonde readiness recharge quand `current.json` change), plus de
+      volume partagé dans `docker-compose.prod.yml`. Reste en prod : créer le bucket Garage,
+      variables `MODEL_S3_BUCKET` (+ creds S3 côté Dagster) dans Coolify, lancer `retrain_model`
+      pour écrire le premier `current.json`.
 - [ ] Faire valider par le métier les hypothèses de l'ADR-0007 : vent compté comme orage,
       capacité transporteur maximale de 50.
 - [ ] Obtenir une vraie cible (délai ou mode de livraison réel) : la cible actuelle est

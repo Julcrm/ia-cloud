@@ -26,8 +26,8 @@ from express_delivery.api.schemas import (
 )
 from express_delivery.config import API_KEY, MODEL_VERSION, PROJECT_NAME
 from express_delivery.domain.prediction import OrderEligibilityPredictor
-from express_delivery.infrastructure.dev.file_model_repository import FileModelRepository
 from express_delivery.infrastructure.ducklake.ducklake_order_store import DuckLakeOrderStore
+from express_delivery.infrastructure.model_repository_factory import build_model_repository
 
 
 class ApiError(Exception):
@@ -107,6 +107,23 @@ def get_health() -> HealthStatus:
     return HealthStatus(status="ok", service=PROJECT_NAME, version=MODEL_VERSION)
 
 
+def refresh_model(app):
+    """Recharge le modèle si current.json pointe une autre version (ADR-0002), sans redémarrer.
+
+    Déclenché par la sonde readiness, que l'orchestrateur appelle déjà régulièrement :
+    pas de tâche de fond. Toute erreur laisse le modèle courant en place.
+    """
+    version = try_or_none(app.state.model_repository.current_version)
+    if version is None or version == app.state.model_version:
+        return
+    model = try_or_none(app.state.model_repository.load)
+    if model is None:
+        return
+    app.state.model = model
+    app.state.model_card = try_or_none(app.state.model_repository.load_model_card)
+    app.state.model_version = version
+
+
 @router.get(
     "/health/ready",
     tags=["health"],
@@ -121,6 +138,7 @@ def get_health() -> HealthStatus:
     openapi_extra={"x-session": 1},
 )
 def get_readiness(request: Request) -> ReadinessStatus:
+    refresh_model(request.app)
     checks = {
         "model": "loaded" if request.app.state.model is not None else "not_loaded",
         "order_store": "unreachable",
@@ -238,6 +256,7 @@ def create_app(build_order_store, model_repository: ModelRepository, api_key) ->
     async def lifespan(app: FastAPI):
         app.state.model = try_or_none(model_repository.load)
         app.state.model_card = try_or_none(model_repository.load_model_card)
+        app.state.model_version = try_or_none(model_repository.current_version)
         app.state.order_store = try_or_none(build_order_store)
         yield
 
@@ -248,6 +267,7 @@ def create_app(build_order_store, model_repository: ModelRepository, api_key) ->
         lifespan=lifespan,
     )
     app.state.api_key = api_key
+    app.state.model_repository = model_repository
     app.include_router(router)
 
     # Middleware et non dépendance FastAPI : la clé n'apparaît pas dans /openapi.json,
@@ -279,4 +299,4 @@ def create_app(build_order_store, model_repository: ModelRepository, api_key) ->
     return app
 
 
-app = create_app(DuckLakeOrderStore, FileModelRepository(), API_KEY)
+app = create_app(DuckLakeOrderStore, build_model_repository(), API_KEY)
