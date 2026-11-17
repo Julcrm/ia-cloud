@@ -17,13 +17,11 @@ class ErpSimulator:
         config: SimulationConfig,
         generator: OrderGenerator,
         postgres: OrderWriter,
-        mongo: OrderWriter,
         logger: logging.Logger,
     ) -> None:
         self.config = config
         self.generator = generator
         self.postgres = postgres
-        self.mongo = mongo
         self.logger = logger
 
     def run(self) -> None:
@@ -32,8 +30,7 @@ class ErpSimulator:
             self._write_live_stream()
         finally:
             self.postgres.close()
-            self.mongo.close()
-            self.logger.info("Connexions aux bases fermées.")
+            self.logger.info("Connexion à la base fermée.")
 
     def _write_history(self) -> None:
         old_count = self.config.postgres_old_history_orders
@@ -49,9 +46,6 @@ class ErpSimulator:
         self.logger.info(
             "Historique partagé 2023+ PostgreSQL : %d commandes.",
             self.postgres.write(recent_orders),
-        )
-        self.logger.info(
-            "Historique partagé 2023+ MongoDB : %d commandes.", self.mongo.write(recent_orders)
         )
 
         if isinstance(self.postgres, OrderCounter):
@@ -71,11 +65,9 @@ class ErpSimulator:
             size = self._next_batch_size(sequence)
             orders = self.generator.live_batch(sequence, size, simulation_date)
             postgres_count = self.postgres.write(orders)
-            mongo_count = self.mongo.write(orders)
             self.logger.info(
-                "Lot live : PostgreSQL=%d, MongoDB=%d, date=%s, dernière commande=%s.",
+                "Lot live : PostgreSQL=%d, date=%s, dernière commande=%s.",
                 postgres_count,
-                mongo_count,
                 orders[-1]["order_date"],
                 orders[-1]["order_id"],
             )

@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, datetime, time
+from datetime import date
 from typing import Protocol, runtime_checkable
 
 import psycopg
 from psycopg.rows import dict_row
-from pymongo import MongoClient, ReplaceOne
 
 
 Order = dict[str, object]
@@ -98,42 +97,3 @@ class PostgresWriter:
 
     def close(self) -> None:
         self.connection.close()
-
-
-class NoWriter:
-    """Remplace MongoDB quand MONGO_URI est vide : seul PostgreSQL est alimenté (ADR-0007)."""
-
-    def write(self, orders: Sequence[Order]) -> int:
-        return 0
-
-    def close(self) -> None:
-        pass
-
-
-class MongoWriter:
-    def __init__(self, uri: str) -> None:
-        self.client = MongoClient(uri)
-        self.client.admin.command("ping")
-        self.collection = self.client["livraison_express"]["orders"]
-        self.collection.create_index("order_id", unique=True)
-
-    @staticmethod
-    def _document(order: Order) -> Order:
-        document = dict(order)
-        if isinstance(document.get("order_date"), date):
-            document["order_date"] = datetime.combine(document["order_date"], time.min)
-        return document
-
-    def write(self, orders: Sequence[Order]) -> int:
-        if not orders:
-            return 0
-        result = self.collection.bulk_write(
-            [
-                ReplaceOne({"order_id": order["order_id"]}, self._document(order), upsert=True)
-                for order in orders
-            ]
-        )
-        return result.upserted_count
-
-    def close(self) -> None:
-        self.client.close()
