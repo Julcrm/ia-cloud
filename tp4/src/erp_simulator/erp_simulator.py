@@ -7,7 +7,7 @@ import logging
 from config import SimulationConfig
 from generator import OrderGenerator
 from simulator import ErpSimulator
-from storage import MongoWriter, NoWriter, PostgresWriter
+from storage import PostgresWriter
 
 
 def main() -> None:
@@ -29,7 +29,6 @@ def main() -> None:
         config,
         OrderGenerator(),
         PostgresWriter(config.postgres_dsn),
-        MongoWriter(config.mongo_uri) if config.mongo_uri else NoWriter(),
         logger,
     )
     simulator.run()
