@@ -16,7 +16,7 @@ x-s3-env: &s3-env
   MODEL_S3_BUCKET: ${MODEL_S3_BUCKET:?}
 
 services:
-  # Code server Dagster (TP4 étape 6) : le dagster-workspace du VPS le charge en gRPC
+  # Code server Dagster (réentraînement planifié) : le dagster-workspace du VPS le charge en gRPC
   # (workspace.yaml : host ia-cloud-dagster, port 4000) et réentraîne le modèle chaque nuit.
   ia-cloud-dagster:
     <<: *hardening
