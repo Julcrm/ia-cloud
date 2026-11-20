@@ -7,7 +7,7 @@ import logging
 from config import SimulationConfig
 from generator import OrderGenerator
 from simulator import ErpSimulator
-from storage import PostgresWriter
+from storage import KafkaWriter
 
 
 def main() -> None:
@@ -19,7 +19,8 @@ def main() -> None:
     )
     logger = logging.getLogger("erp_simulator")
     logger.info(
-        "Démarrage ERP : date=%s, historique PostgreSQL=%d, historique partagé 2023+=%d, live=%s.",
+        "Démarrage ERP vers le topic %s : date=%s, ancien historique=%d, historique partagé 2023+=%d, live=%s.",
+        config.kafka_topic,
         config.today,
         config.postgres_old_history_orders,
         config.recent_history_orders,
@@ -28,7 +29,7 @@ def main() -> None:
     simulator = ErpSimulator(
         config,
         OrderGenerator(),
-        PostgresWriter(config.postgres_dsn),
+        KafkaWriter(config.kafka_bootstrap_servers, config.kafka_topic),
         logger,
     )
     simulator.run()

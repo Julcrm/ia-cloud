@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 from config import SimulationConfig
 from generator import OrderGenerator
-from storage import OrderCounter, OrderWriter
+from storage import OrderCounter, OrderWriter, SequenceSource
 
 
 class ErpSimulator:
@@ -16,68 +16,67 @@ class ErpSimulator:
         self,
         config: SimulationConfig,
         generator: OrderGenerator,
-        postgres: OrderWriter,
+        writer: OrderWriter,
         logger: logging.Logger,
     ) -> None:
         self.config = config
         self.generator = generator
-        self.postgres = postgres
+        self.writer = writer
         self.logger = logger
 
     def run(self) -> None:
         try:
-            self._write_history()
-            self._write_live_stream()
+            # Lu avant tout envoi : au redémarrage, on reprend après la dernière commande écrite.
+            last = self.writer.next_sequence() if isinstance(self.writer, SequenceSource) else 0
+            history = self.config.postgres_old_history_orders + self.config.recent_history_orders
+            if last < history:
+                self._write_history()
+            else:
+                self.logger.info("Historique déjà écrit (dernière commande ERP-%08d).", last)
+            self._write_live_stream(last)
         finally:
-            self.postgres.close()
-            self.logger.info("Connexion à la base fermée.")
+            self.writer.close()
+            self.logger.info("Connexion fermée.")
 
     def _write_history(self) -> None:
         old_count = self.config.postgres_old_history_orders
         recent_count = self.config.recent_history_orders
         old_orders = self.generator.old_history(old_count, self.config.today, first_sequence=1)
-        self.logger.info(
-            "Ancien historique PostgreSQL : %d commandes.", self.postgres.write(old_orders)
-        )
+        self.logger.info("Ancien historique : %d commandes.", self.writer.write(old_orders))
 
         recent_orders = self.generator.recent_history(
             recent_count, self.config.today, first_sequence=old_count + 1
         )
         self.logger.info(
-            "Historique partagé 2023+ PostgreSQL : %d commandes.",
-            self.postgres.write(recent_orders),
+            "Historique partagé 2023+ : %d commandes.", self.writer.write(recent_orders)
         )
 
-        if isinstance(self.postgres, OrderCounter):
-            count = self.postgres.count_from(date(2023, 1, 1), self.config.today)
-            self.logger.info("PostgreSQL : %d commandes présentes depuis 2023.", count)
+        if isinstance(self.writer, OrderCounter):
+            count = self.writer.count_from(date(2023, 1, 1), self.config.today)
+            self.logger.info("%d commandes présentes depuis 2023.", count)
 
-    def _write_live_stream(self) -> None:
+    def _write_live_stream(self, last: int) -> None:
         minimum_sequence = (
             self.config.postgres_old_history_orders + self.config.recent_history_orders + 1
         )
-        sequence = minimum_sequence
-        if isinstance(self.postgres, OrderCounter):
-            sequence = max(sequence, self.postgres.next_sequence() + 1)
-            self.logger.info("Prochaine séquence live : ERP-%08d.", sequence)
+        sequence = max(minimum_sequence, last + 1)
+        self.logger.info("Prochaine séquence live : ERP-%08d.", sequence)
         simulation_date = self.config.today
         while self.config.live_order_limit == 0 or sequence <= self.config.live_order_limit:
             size = self._next_batch_size(sequence)
             orders = self.generator.live_batch(sequence, size, simulation_date)
-            postgres_count = self.postgres.write(orders)
+            written = self.writer.write(orders)
             self.logger.info(
-                "Lot live : PostgreSQL=%d, date=%s, dernière commande=%s.",
-                postgres_count,
+                "Lot live : %d commandes, date=%s, dernière commande=%s.",
+                written,
                 orders[-1]["order_date"],
                 orders[-1]["order_id"],
             )
-            if isinstance(self.postgres, OrderCounter):
+            if isinstance(self.writer, OrderCounter):
                 next_day = simulation_date + timedelta(days=1)
-                count = self.postgres.count_from(simulation_date, next_day)
+                count = self.writer.count_from(simulation_date, next_day)
                 self.logger.info(
-                    "PostgreSQL : %d commandes présentes pour la date live %s.",
-                    count,
-                    simulation_date,
+                    "%d commandes présentes pour la date live %s.", count, simulation_date
                 )
             sequence += size
             simulation_date += timedelta(days=1)
