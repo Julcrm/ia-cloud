@@ -195,5 +195,5 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d "{\"key\":\"IMAGE_TAG\",\"value\":\"$TAG\"}"
-          curl -fsS --max-time 30 "$COOLIFY_API/deploy?uuid=$UUID&force=false" \
+          curl -fsS --max-time 30 -X POST "$COOLIFY_API/deploy?uuid=$UUID&force=false" \
             -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
