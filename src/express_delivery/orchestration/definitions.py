@@ -24,12 +24,16 @@ def express_delivery_model() -> MaterializeResult:
     model_card = TrainingPipeline(
         DuckLakeOrdersSource(), MlflowModelTrainer(), build_model_repository()
     ).run()
+    served_f1 = model_card["promotion"]["served_model_f1"]
     return MaterializeResult(
         metadata={
             **model_card["metrics"],
             "training_rows": model_card["training_rows"],
             "test_rows": model_card["test_rows"],
             "ducklake_snapshot_id": model_card["data_source"]["ducklake_snapshot_id"],
+            "published": model_card["promotion"]["published"],
+            # -1 : aucun modèle en service à comparer (Dagster refuse None en métadonnée).
+            "served_model_f1": -1.0 if served_f1 is None else served_f1,
         }
     )
 
