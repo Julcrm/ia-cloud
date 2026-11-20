@@ -46,7 +46,7 @@ def test_load_round_trips_the_model_pointed_by_current():
     repo.save({"model": "stub"}, {"accuracy": 0.9}, {"name": "card"})
 
     assert repo.load() == {"model": "stub"}
-    assert repo.load_model_card() == {"name": "card"}
+    assert repo.load_model_card() == {"name": "card", "model_version": repo.current_version()}
 
 
 def test_load_refuses_a_model_trained_on_other_features():

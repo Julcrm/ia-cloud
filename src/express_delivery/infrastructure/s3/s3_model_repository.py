@@ -74,7 +74,8 @@ class S3ModelRepository(ModelRepository):
                 "categorical_features": CATEGORICAL_FEATURES,
             },
         )
-        self._put_json(f"{version}/model_card.json", model_card)
+        # La fiche porte l'id du dossier : c'est lui qui identifie le modèle servi.
+        self._put_json(f"{version}/model_card.json", {**model_card, "model_version": version_id})
 
         # En dernier : la version n'est servie qu'une fois tous ses fichiers écrits.
         self._put_json(CURRENT_KEY, {"version": version_id})

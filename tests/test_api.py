@@ -1,5 +1,6 @@
 """Tests de l'API : model card (séance 3)."""
 
+import numpy as np
 from fastapi.testclient import TestClient
 
 from express_delivery.abstractions.model_repository import ModelRepository
@@ -21,6 +22,27 @@ MODEL_CARD = {
     "metrics": {"accuracy": 0.77, "roc_auc": 0.85},
     "limitations": ["Le jeu de données utilisé est synthétique."],
 }
+
+
+ORDER = {
+    "hour": 10,
+    "day_of_week": 1,
+    "weekend": 0,
+    "distance_km": 2,
+    "order_value_eur": 50,
+    "weight_kg": 1,
+    "stock_available": 1,
+    "preparation_time_min": 10,
+    "carrier_capacity": 0.9,
+    "weather": "normal",
+    "delivery_zone": "centre",
+    "customer_type": "premium",
+}
+
+
+class ConstantModel:
+    def predict_proba(self, rows):
+        return np.array([[0.2, 0.8]] * len(rows))
 
 
 class InMemoryModelRepository(ModelRepository):
@@ -81,14 +103,17 @@ def test_model_card_requires_api_key():
 
 
 def test_model_hot_reloads_when_current_version_changes():
-    repo = InMemoryModelRepository(object(), MODEL_CARD, version="1.0.0")
+    repo = InMemoryModelRepository(ConstantModel(), MODEL_CARD, version="1.0.0")
     with client_for(repo) as client:
         assert client.get("/v1/model").json()["model_version"] == "1.0.0"
 
         # Nouvelle version publiée (current.json flip) : l'API doit la prendre sans redémarrer.
-        repo.model = object()
-        repo.model_card = {**MODEL_CARD, "model_version": "1.1.0"}
-        repo.version = "1.1.0"
+        repo.model = ConstantModel()
+        repo.model_card = {**MODEL_CARD, "model_version": "1.0.0-20261120T134920Z"}
+        repo.version = "1.0.0-20261120T134920Z"
 
         client.get("/health/ready")  # la sonde déclenche le rechargement
-        assert client.get("/v1/model").json()["model_version"] == "1.1.0"
+        assert client.get("/v1/model").json()["model_version"] == "1.0.0-20261120T134920Z"
+        # La prédiction indique le dossier exact du modèle qui l'a produite.
+        prediction = client.post("/v1/predictions", json=ORDER).json()
+        assert prediction["model_version"] == "1.0.0-20261120T134920Z"
