@@ -31,6 +31,8 @@ dev = [
 orchestration = [
     "dagster==1.13.24",
     "dagster-postgres==0.29.24",
+    # SQLAlchemy 2.1 vise psycopg 3 par défaut, dagster-postgres n'installe que psycopg2 : même version que le dagster-workspace.
+    "sqlalchemy==2.0.54",
 ]
 
 [tool.uv]
