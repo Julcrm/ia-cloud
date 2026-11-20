@@ -1,6 +1,7 @@
 # Environnement de test : tout tourne en local, ERP compris (ADR-0007).
 #   docker compose -f docker-compose.test.yml up --build
-# Ordre : base ERP -> simulateur (historique + 100 commandes live, puis s'arrête)
+# Ordre : Redpanda + topic erp.orders -> simulateur (historique + 100 commandes live publiées,
+#         puis s'arrête) -> consumer vers la base ERP (s'arrête une fois le topic vidé)
 #         -> entraînement sur l'ERP -> API avec le modèle obtenu.
 # Les services ERP viennent de erp-simulator/, sans modification.
 
@@ -15,6 +16,19 @@ services:
       service: postgres
     ports: !reset []
 
+  redpanda:
+    extends:
+      file: erp-simulator/docker-compose.erp.yml
+      service: redpanda
+
+  redpanda-init:
+    extends:
+      file: erp-simulator/docker-compose.erp.yml
+      service: redpanda-init
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
   erp-simulator:
     extends:
       file: erp-simulator/docker-compose.erp.yml
@@ -23,8 +37,20 @@ services:
       INTERVAL_SECONDS: 0
       LIVE_ORDER_LIMIT: 11100
     depends_on:
+      redpanda-init:
+        condition: service_completed_successfully
+
+  erp-postgres-sink:
+    extends:
+      file: erp-simulator/docker-compose.erp.yml
+      service: erp-postgres-sink
+    environment:
+      STOP_AFTER_IDLE_SECONDS: 15
+    depends_on:
       postgres:
         condition: service_healthy
+      erp-simulator:
+        condition: service_completed_successfully
 
   train:
     <<: *hardening
@@ -38,7 +64,7 @@ services:
     volumes:
       - artifacts:/app/artifacts
     depends_on:
-      erp-simulator:
+      erp-postgres-sink:
         condition: service_completed_successfully
 
   api:
