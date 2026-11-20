@@ -4,6 +4,7 @@
 #   docker build --target api   -t ia-cloud-api .     API, cible par défaut
 #   docker build --target train -t ia-cloud-train .   entraînement, lancé à la demande
 #   docker build --target orchestrator -t ia-cloud-orchestrator .   code server Dagster (réentraînement)
+#   docker build --target ingest -t ia-cloud-ingest .   consumer Redpanda erp.orders -> DuckLake
 
 # Image de base figée par version et par empreinte : un build donne toujours le même
 # système. À mettre à jour volontairement pour récupérer les correctifs de sécurité.
@@ -94,6 +95,35 @@ USER 1000:1000
 EXPOSE 4000
 
 CMD ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "4000", "-m", "express_delivery.orchestration.definitions"]
+
+
+# ── Consumer ERP : topic erp.orders -> DuckLake, dépendances de l'API + confluent-kafka ──
+FROM builder AS ingest-deps
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-default-groups --group streaming --no-editable \
+    && find /app/.venv -type d -name tests -prune -exec rm -rf {} +
+
+
+FROM base AS ingest
+
+RUN python -m pip uninstall --yes pip \
+    && useradd --create-home --uid 1000 app
+
+WORKDIR /app
+
+COPY --from=ingest-deps /app/.venv /app/.venv
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+USER 1000:1000
+
+# Extensions DuckDB installées au build, comme pour l'API.
+RUN python -c "import duckdb; duckdb.sql('INSTALL ducklake; INSTALL postgres; INSTALL httpfs')"
+
+CMD ["python", "-m", "express_delivery.infrastructure.redpanda.erp_orders_consumer"]
 
 
 # ── API : sans uv, sans mlflow, sans pip, sans sources ni traces MLflow ──
