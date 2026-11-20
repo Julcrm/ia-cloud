@@ -1,9 +1,10 @@
-"""Traduction des commandes de l'ERP vers les données du modèle (ADR-0007)."""
+"""Entraînement sur les commandes de l'ERP copiées dans DuckLake (table erp_orders)."""
 
 import pandas as pd
 
 from express_delivery.domain.data_quality import DataCleaner, DataValidator
-from express_delivery.infrastructure.postgres.postgres_orders_source import PostgresOrdersSource
+from express_delivery.infrastructure.ducklake.ducklake_erp_order_store import DuckLakeErpOrderStore
+from express_delivery.infrastructure.ducklake.ducklake_orders_source import DuckLakeOrdersSource
 
 
 def erp_order(order_id, weekend, preparation_time_min):
@@ -34,7 +35,7 @@ def test_erp_orders_are_translated_and_labelled():
         ]
     )
 
-    orders = PostgresOrdersSource.to_model_orders(erp)
+    orders = DuckLakeOrdersSource.to_model_orders(erp)
 
     assert orders["weather"].eq("pluie").all()
     assert orders["delivery_zone"].eq("banlieue").all()
@@ -46,3 +47,24 @@ def test_erp_orders_are_translated_and_labelled():
     cleaned = DataCleaner.clean_orders_data(orders)
     assert cleaned["order_id"].tolist() == ["ERP-00000002", "ERP-00000003"]
     assert DataValidator.validate_dataset(cleaned)
+
+
+def write(lake, orders):
+    store = DuckLakeErpOrderStore(*lake)
+    store.add_many(orders)
+    store._connection.close()  # un seul processus à la fois sur un catalogue local
+
+
+def test_snapshot_pins_the_training_data(tmp_path):
+    lake = (f"ducklake:{tmp_path}/catalog.ducklake", f"{tmp_path}/lake/")
+    write(lake, [erp_order("ERP-00000001", 1, 20.0), erp_order("ERP-00000002", 1, 20.0)])
+    first = DuckLakeOrdersSource(None, *lake)
+    assert len(first.load()) == 2
+    snapshot = first.describe()["ducklake_snapshot_id"]
+
+    write(lake, [erp_order("ERP-00000003", 1, 20.0)])
+
+    assert len(DuckLakeOrdersSource(None, *lake).load()) == 3
+    # Rejouer l'entraînement sur l'ancien snapshot redonne exactement ses données.
+    replay = DuckLakeOrdersSource(snapshot, *lake).load()
+    assert replay["order_id"].tolist() == ["ERP-00000001", "ERP-00000002"]

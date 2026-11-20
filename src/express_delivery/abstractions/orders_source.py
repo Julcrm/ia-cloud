@@ -9,3 +9,7 @@ class OrdersSource(ABC):
     @abstractmethod
     def load(self) -> pd.DataFrame:
         """Retourne les commandes brutes."""
+
+    def describe(self) -> dict:
+        """Origine des données du dernier load(), notée dans la fiche du modèle."""
+        return {}

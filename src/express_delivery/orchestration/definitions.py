@@ -13,22 +13,23 @@ from dagster import (
     define_asset_job,
 )
 
+from express_delivery.infrastructure.ducklake.ducklake_orders_source import DuckLakeOrdersSource
 from express_delivery.infrastructure.mlflow.mlflow_model_trainer import MlflowModelTrainer
 from express_delivery.infrastructure.model_repository_factory import build_model_repository
-from express_delivery.infrastructure.postgres.postgres_orders_source import PostgresOrdersSource
 from express_delivery.pipelines import TrainingPipeline
 
 
-@asset(description="Modèle d'éligibilité express entraîné sur les commandes de l'ERP (ADR-0007).")
+@asset(description="Modèle d'éligibilité express entraîné sur les commandes de l'ERP (DuckLake).")
 def express_delivery_model() -> MaterializeResult:
     model_card = TrainingPipeline(
-        PostgresOrdersSource(), MlflowModelTrainer(), build_model_repository()
+        DuckLakeOrdersSource(), MlflowModelTrainer(), build_model_repository()
     ).run()
     return MaterializeResult(
         metadata={
             **model_card["metrics"],
             "training_rows": model_card["training_rows"],
             "test_rows": model_card["test_rows"],
+            "ducklake_snapshot_id": model_card["data_source"]["ducklake_snapshot_id"],
         }
     )
 
