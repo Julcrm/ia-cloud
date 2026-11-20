@@ -1,0 +1,49 @@
+# Production (VPS, Coolify) : simulateur ERP + consumer vers la base de l'ERP.
+# Redpanda et PostgreSQL sont les services partagés du VPS (réseau coolify) ;
+# le topic erp.orders y est créé à la main (création automatique coupée).
+
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  erp-simulator:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: Dockerfile.erp-simulator
+    # Borné par LIVE_ORDER_LIMIT : s'arrête une fois fini, sans être relancé en boucle.
+    restart: "no"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+      BATCH_SIZE: ${BATCH_SIZE:-5}
+      INTERVAL_SECONDS: ${INTERVAL_SECONDS:-5}
+      POSTGRES_HISTORY_ORDERS: ${POSTGRES_HISTORY_ORDERS:-10000}
+      RECENT_HISTORY_ORDERS: ${RECENT_HISTORY_ORDERS:-1000}
+      LIVE_ORDER_LIMIT: ${LIVE_ORDER_LIMIT:-0}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    networks:
+      - coolify
+
+  erp-postgres-sink:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: Dockerfile.erp-simulator
+    command: ["python", "postgres_sink.py"]
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+      POSTGRES_DSN: ${POSTGRES_DSN:?rôle erp_writer sur livraison_express}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
+    name: coolify
