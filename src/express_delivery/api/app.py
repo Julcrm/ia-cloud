@@ -53,7 +53,7 @@ def try_or_none(build):
         return None
 
 
-def predict(order_data, model):
+def predict(order_data, model, model_version=None):
     start = time.perf_counter()
     result = OrderEligibilityPredictor.predict_order_eligibility(order_data, model)
     latency_ms = (time.perf_counter() - start) * 1000
@@ -63,18 +63,20 @@ def predict(order_data, model):
         express_eligible=result["express_eligible"],
         decision=result["decision"],
         probability=result["probability"],
-        model_version=result["model_version"],
+        # Version réellement chargée (id du dossier S3), à défaut celle du code.
+        model_version=model_version or result["model_version"],
         predicted_at=datetime.fromisoformat(result["prediction_timestamp"]).replace(tzinfo=UTC),
         latency_ms=round(latency_ms, 2),
     )
 
 
-def predict_in_background(order_data, model):
+def predict_in_background(order_data, model, model_version=None):
     """Prédiction asynchrone d'une commande collectée. Stockage : séance 5."""
     if model is None:
         print(f"Commande {order_data['order_id']} non prédite : aucun modèle chargé.")
         return
-    print(f"Prédiction asynchrone : {predict(order_data, model).model_dump_json()}")
+    prediction = predict(order_data, model, model_version)
+    print(f"Prédiction asynchrone : {prediction.model_dump_json()}")
 
 
 def is_valid_api_key(received, api_key):
@@ -187,7 +189,8 @@ def create_order(
 
     order_data = with_order_id(order)
     order_store.add(order_data)
-    background_tasks.add_task(predict_in_background, order_data, request.app.state.model)
+    state = request.app.state
+    background_tasks.add_task(predict_in_background, order_data, state.model, state.model_version)
 
     return OrderAccepted(order_id=order_data["order_id"], status="accepted")
 
@@ -229,7 +232,7 @@ def create_prediction(order: OrderFeatures, request: Request) -> Prediction:
     model = request.app.state.model
     if model is None:
         raise ApiError(503, "model_unavailable", "Aucun modèle n'est chargé.")
-    return predict(with_order_id(order), model)
+    return predict(with_order_id(order), model, request.app.state.model_version)
 
 
 @router.get(
