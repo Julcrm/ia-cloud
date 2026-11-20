@@ -9,7 +9,8 @@ from datetime import date
 
 @dataclass(frozen=True)
 class SimulationConfig:
-    postgres_dsn: str
+    kafka_bootstrap_servers: str
+    kafka_topic: str = "erp.orders"
     batch_size: int = 5
     interval_seconds: float = 5.0
     postgres_old_history_orders: int = 10_000
@@ -21,7 +22,8 @@ class SimulationConfig:
     @classmethod
     def from_environment(cls) -> SimulationConfig:
         return cls(
-            postgres_dsn=os.environ["POSTGRES_DSN"],
+            kafka_bootstrap_servers=os.environ["KAFKA_BOOTSTRAP_SERVERS"],
+            kafka_topic=os.getenv("KAFKA_TOPIC", "erp.orders"),
             batch_size=int(os.getenv("BATCH_SIZE", "5")),
             interval_seconds=float(os.getenv("INTERVAL_SECONDS", "5")),
             postgres_old_history_orders=int(os.getenv("POSTGRES_HISTORY_ORDERS", "10000")),

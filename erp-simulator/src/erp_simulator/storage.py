@@ -7,7 +7,10 @@ from datetime import date
 from typing import Protocol, runtime_checkable
 
 import psycopg
+from confluent_kafka import Consumer, Producer, TopicPartition
 from psycopg.rows import dict_row
+
+from messages import encode, sequence_of
 
 
 Order = dict[str, object]
@@ -22,12 +25,67 @@ class OrderWriter(Protocol):
 
 
 @runtime_checkable
-class OrderCounter(Protocol):
+class SequenceSource(Protocol):
+    def next_sequence(self) -> int:
+        """Retourne le plus grand numéro de commande déjà écrit (0 si aucun)."""
+
+
+@runtime_checkable
+class OrderCounter(SequenceSource, Protocol):
     def count_from(self, start: date, end: date) -> int:
         """Compte les commandes sur une période."""
 
+
+class KafkaWriter:
+    """Publie les commandes dans le topic Redpanda ; un consumer par base les recopie."""
+
+    def __init__(self, bootstrap_servers: str, topic: str) -> None:
+        self.topic = topic
+        self.brokers = {"bootstrap.servers": bootstrap_servers}
+        # Idempotence : pas de doublon dans le topic si le producteur réessaie un envoi.
+        self.producer = Producer({**self.brokers, "enable.idempotence": True})
+
+    def write(self, orders: Sequence[Order]) -> int:
+        errors = []
+
+        def on_delivery(error, _message) -> None:
+            if error:
+                errors.append(error)
+
+        for order in orders:
+            key, value = encode(order)
+            self.producer.produce(self.topic, key=key, value=value, on_delivery=on_delivery)
+            self.producer.poll(0)
+        remaining = self.producer.flush(60)
+        if errors or remaining:
+            raise RuntimeError(
+                f"Publication incomplète : {len(errors)} erreurs, {remaining} en attente ({errors[:1]})"
+            )
+        return len(orders)
+
     def next_sequence(self) -> int:
-        """Retourne le prochain numéro de commande disponible."""
+        # Chaque partition reçoit des numéros croissants : le plus grand est le dernier d'une partition.
+        consumer = Consumer({**self.brokers, "group.id": "erp-simulator", "enable.auto.commit": False})
+        try:
+            partitions = consumer.list_topics(self.topic, timeout=10).topics[self.topic].partitions
+            last = 0
+            for partition in partitions:
+                low, high = consumer.get_watermark_offsets(
+                    TopicPartition(self.topic, partition), timeout=10
+                )
+                if high <= low:
+                    continue
+                consumer.assign([TopicPartition(self.topic, partition, high - 1)])
+                message = consumer.poll(10)
+                if message is None or message.error():
+                    raise RuntimeError(f"Dernier message illisible (partition {partition})")
+                last = max(last, sequence_of(message.key()))
+            return last
+        finally:
+            consumer.close()
+
+    def close(self) -> None:
+        self.producer.flush(60)
 
 
 class PostgresWriter:
