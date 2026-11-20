@@ -54,7 +54,9 @@ class TrainingPipeline:
         self.evaluator.print_metrics(metrics)
         self.evaluator.print_report(y_test, y_pred)
 
-        model_card = self.model_card_builder.build(metrics, X_train, X_test)
+        model_card = self.model_card_builder.build(
+            metrics, X_train, X_test, self.orders_source.describe()
+        )
         self.model_repository.save(model_pipeline, metrics, model_card)
 
         return model_card

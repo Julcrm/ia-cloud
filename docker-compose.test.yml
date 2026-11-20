@@ -1,10 +1,15 @@
 # Environnement de test : tout tourne en local, ERP compris (ADR-0007).
 #   docker compose -f docker-compose.test.yml up --build
 # Ordre : Redpanda + topic erp.orders -> simulateur (historique + 100 commandes live publiées,
-#         puis s'arrête) -> consumer vers la base ERP (s'arrête une fois le topic vidé)
-#         -> entraînement sur l'ERP -> API avec le modèle obtenu.
-#         En parallèle, consumer erp.orders -> DuckLake (lac local, distinct de celui de l'API).
+#         puis s'arrête) -> deux consumers, vers la base ERP et vers DuckLake (s'arrêtent une fois
+#         le topic vidé) -> entraînement sur DuckLake -> API avec le modèle obtenu.
+#         Le lac du consumer (volume erp_lake) est distinct de celui de l'API.
 # Les services ERP viennent de erp-simulator/, sans modification.
+
+# Lac local du consumer ERP, relu par l'entraînement (catalogue fichier : un seul processus à la fois).
+x-lake-env: &lake-env
+  DUCKLAKE_CATALOG: ducklake:/lake/catalog.ducklake
+  DUCKLAKE_DATA_PATH: /lake/data/
 
 x-hardening: &hardening
   cap_drop: [ALL]
@@ -53,19 +58,27 @@ services:
       erp-simulator:
         condition: service_completed_successfully
 
+  # Volume du lac rendu inscriptible par l'utilisateur app (uid 1000) du consumer et de l'entraînement.
+  lake-init:
+    image: postgres:17-alpine
+    entrypoint: ["chown", "1000:1000", "/lake"]
+    volumes:
+      - erp_lake:/lake
+
   erp-ducklake-sink:
     <<: *hardening
     build:
       context: .
       target: ingest
     environment:
+      <<: *lake-env
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-      DUCKLAKE_CATALOG: ducklake:/home/app/lake/catalog.ducklake
-      DUCKLAKE_DATA_PATH: /home/app/lake/data/
       STOP_AFTER_IDLE_SECONDS: 15
-    tmpfs:
-      - /home/app/lake:uid=1000,gid=1000
+    volumes:
+      - erp_lake:/lake
     depends_on:
+      lake-init:
+        condition: service_completed_successfully
       erp-simulator:
         condition: service_completed_successfully
 
@@ -75,13 +88,13 @@ services:
       context: .
       target: train
     environment:
-      ERP_POSTGRES_HOST: postgres
-      ERP_POSTGRES_USER: livraison
-      ERP_POSTGRES_PASSWORD: livraison
+      <<: *lake-env
+      ORDERS_SOURCE: ducklake
     volumes:
       - artifacts:/app/artifacts
+      - erp_lake:/lake
     depends_on:
-      erp-postgres-sink:
+      erp-ducklake-sink:
         condition: service_completed_successfully
 
   api:
@@ -105,4 +118,5 @@ services:
 
 volumes:
   artifacts:
+  erp_lake:
   postgres_erp_data:

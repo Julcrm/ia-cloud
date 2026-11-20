@@ -109,7 +109,7 @@ class ModelEvaluator:
 class ModelCardBuilder:
     """Résumé du modèle entraîné (cellule 55)."""
 
-    def build(self, metrics, X_train, X_test):
+    def build(self, metrics, X_train, X_test, data_source=None):
         model_card = {
             "project": PROJECT_NAME,
             "model_version": MODEL_VERSION,
@@ -124,6 +124,7 @@ class ModelCardBuilder:
             "training_rows": len(X_train),
             "test_rows": len(X_test),
             "metrics": metrics,
+            "data_source": data_source or {},
             "limitations": [
                 "La cible est simulée par une règle métier : les métriques ne mesurent pas "
                 "une performance réelle (ADR-0007).",

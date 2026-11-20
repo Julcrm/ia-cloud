@@ -1,21 +1,13 @@
-import duckdb
 import numpy as np
 
 from express_delivery.abstractions.orders_source import OrdersSource
-from express_delivery.config import (
-    ERP_POSTGRES_DB,
-    ERP_POSTGRES_HOST,
-    ERP_POSTGRES_PASSWORD,
-    ERP_POSTGRES_PORT,
-    ERP_POSTGRES_USER,
-    RANDOM_STATE,
-)
+from express_delivery.config import DUCKLAKE_CATALOG, DUCKLAKE_DATA_PATH, RANDOM_STATE
 from express_delivery.infrastructure.dev.synthetic_orders_source import (
     simulate_express_eligibility,
 )
-from express_delivery.infrastructure.ducklake.ducklake_order_store import sql_literal
+from express_delivery.infrastructure.ducklake.ducklake_order_store import connect_lake
 
-# Vocabulaire de l'ERP -> vocabulaire du modèle et de openapi.yml.
+# Vocabulaire de l'ERP -> vocabulaire du modèle et de openapi.yml (ADR-0007).
 WEATHER = {"clear": "normal", "rain": "pluie", "snow": "neige", "wind": "orage"}
 DELIVERY_ZONE = {"centre": "centre", "suburb": "banlieue", "rural": "rurale"}
 CUSTOMER_TYPE = {"individual": "standard", "business": "premium"}
@@ -23,27 +15,37 @@ CUSTOMER_TYPE = {"individual": "standard", "business": "premium"}
 ERP_MAX_CARRIER_CAPACITY = 50
 
 
-class PostgresOrdersSource(OrdersSource):
-    """Commandes de l'ERP, lues dans sa base PostgreSQL (ADR-0007).
+class DuckLakeOrdersSource(OrdersSource):
+    """Commandes de l'ERP copiées dans DuckLake (table erp_orders, alimentée par le topic).
 
-    Lecture seule. Les identifiants passent par un secret DuckDB, comme pour DuckLake.
+    Lecture sur un snapshot figé : la fiche du modèle le note, et le même snapshot redonne
+    exactement les mêmes données pour rejouer un entraînement.
     """
 
+    def __init__(self, snapshot_id=None, catalog=DUCKLAKE_CATALOG, data_path=DUCKLAKE_DATA_PATH):
+        self.snapshot_id = snapshot_id  # None : dernier snapshot au moment de load()
+        self.catalog = catalog
+        self.data_path = data_path
+
     def load(self):
-        connection = duckdb.connect()
-        connection.execute("INSTALL postgres; LOAD postgres;")
-        connection.execute(f"""
-            CREATE SECRET erp (
-                TYPE postgres, HOST {sql_literal(ERP_POSTGRES_HOST)}, PORT {ERP_POSTGRES_PORT},
-                DATABASE {sql_literal(ERP_POSTGRES_DB)}, USER {sql_literal(ERP_POSTGRES_USER)},
-                PASSWORD {sql_literal(ERP_POSTGRES_PASSWORD)}
-            )
-        """)
-        connection.execute("ATTACH '' AS erp (TYPE postgres, SECRET erp, READ_ONLY)")
-        # ORDER BY : même ordre à chaque lecture, donc même cible simulée.
-        orders = connection.execute("SELECT * FROM erp.public.orders ORDER BY order_id").df()
-        connection.close()
+        connection = connect_lake(self.catalog, self.data_path)
+        try:
+            if self.snapshot_id is None:
+                self.snapshot_id = connection.execute(
+                    "SELECT max(snapshot_id) FROM ducklake_snapshots('lake')"
+                ).fetchone()[0]
+            # ORDER BY : même ordre à chaque lecture, donc même cible simulée.
+            orders = connection.execute(
+                "SELECT * EXCLUDE (ingested_at) FROM lake.erp_orders AT (VERSION => ?) "
+                "ORDER BY order_id",
+                [self.snapshot_id],
+            ).df()
+        finally:
+            connection.close()
         return self.to_model_orders(orders)
+
+    def describe(self):
+        return {"source": "ducklake:erp_orders", "ducklake_snapshot_id": self.snapshot_id}
 
     @staticmethod
     def to_model_orders(orders):

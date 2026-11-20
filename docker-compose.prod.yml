@@ -10,13 +10,24 @@ x-hardening: &hardening
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
 
-# Garage : artefacts du modèle écrits par Dagster (ADR-0002), fichiers DuckLake du consumer ERP.
+# Garage : artefacts du modèle écrits par Dagster (ADR-0002) et fichiers DuckLake.
 x-s3-env: &s3-env
   S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:?}
   AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
   AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?}
   AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
   MODEL_S3_BUCKET: ${MODEL_S3_BUCKET:?}
+
+# Lac DuckLake (ADR-0001) : catalogue dans la base PostgreSQL ia_cloud, fichiers sur Garage.
+# Écrit par le consumer ERP (table erp_orders), lu par l'entraînement.
+x-ducklake-env: &ducklake-env
+  DUCKLAKE_CATALOG: "ducklake:postgres:"
+  DUCKLAKE_DATA_PATH: ${DUCKLAKE_DATA_PATH:?}
+  POSTGRES_HOST: ${POSTGRES_HOST:?}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  POSTGRES_DB: ${POSTGRES_DB:-ia_cloud}
+  POSTGRES_USER: ${POSTGRES_USER:?}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
 
 services:
   # Code server Dagster (réentraînement planifié) : le dagster-workspace du VPS le charge en gRPC
@@ -28,16 +39,12 @@ services:
     expose:
       - "4000"
     environment:
-      <<: *s3-env
       DAGSTER_POSTGRES_HOST: ${DAGSTER_POSTGRES_HOST:?}
       DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:?}
       DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:?}
       DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:?}
-      ERP_POSTGRES_HOST: ${ERP_POSTGRES_HOST:?}
-      ERP_POSTGRES_PORT: ${ERP_POSTGRES_PORT:-5432}
-      ERP_POSTGRES_DB: ${ERP_POSTGRES_DB:-livraison_express}
-      ERP_POSTGRES_USER: ${ERP_POSTGRES_USER:?}
-      ERP_POSTGRES_PASSWORD: ${ERP_POSTGRES_PASSWORD:?}
+      <<: [*s3-env, *ducklake-env]
+      ORDERS_SOURCE: ducklake # commandes de l'ERP copiées dans DuckLake (table erp_orders)
     # Socket simple : dagster api grpc-health-check chargerait Dagster à chaque test.
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 4000), 3)"]
@@ -58,15 +65,8 @@ services:
     image: ghcr.io/julcrm/ia-cloud-ingest:${IMAGE_TAG:?tag sha-<commit> obligatoire}
     restart: unless-stopped
     environment:
-      <<: *s3-env
+      <<: [*s3-env, *ducklake-env]
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
-      DUCKLAKE_CATALOG: "ducklake:postgres:"
-      DUCKLAKE_DATA_PATH: ${DUCKLAKE_DATA_PATH:?}
-      POSTGRES_HOST: ${POSTGRES_HOST:?}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${POSTGRES_DB:-ia_cloud}
-      POSTGRES_USER: ${POSTGRES_USER:?}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
     deploy:
       resources:
         limits:

@@ -45,12 +45,9 @@ POSTGRES_DB = os.environ.get("POSTGRES_DB", "ia_cloud")
 POSTGRES_USER = os.environ.get("POSTGRES_USER", "")
 POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
 
-# Base PostgreSQL de l'ERP, source de l'entraînement (ADR-0007). Sans hôte : données synthétiques.
-ERP_POSTGRES_HOST = os.environ.get("ERP_POSTGRES_HOST", "")
-ERP_POSTGRES_PORT = int(os.environ.get("ERP_POSTGRES_PORT", "5432"))
-ERP_POSTGRES_DB = os.environ.get("ERP_POSTGRES_DB", "livraison_express")
-ERP_POSTGRES_USER = os.environ.get("ERP_POSTGRES_USER", "")
-ERP_POSTGRES_PASSWORD = os.environ.get("ERP_POSTGRES_PASSWORD", "")
+# Source de l'entraînement : "ducklake" (commandes de l'ERP copiées dans DuckLake) en test et en
+# production ; par défaut données synthétiques (dev local, modèle entraîné au build de l'image).
+ORDERS_SOURCE = os.environ.get("ORDERS_SOURCE", "synthetic")
 
 # Flux des commandes de l'ERP (Redpanda), copié dans DuckLake par le consumer ERP.
 KAFKA_BOOTSTRAP_SERVERS = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
