@@ -168,17 +168,18 @@ jobs:
   deploy:
     name: Déploiement Coolify
     needs: publish
-    # Ignoré tant que COOLIFY_APP_UUID n'est pas défini : le pipeline reste vert avant config.
+    # Ignoré tant que les UUID Coolify ne sont pas définis : le pipeline reste vert avant config.
     if: >-
       github.ref == 'refs/heads/main' && github.event_name == 'push'
-      && vars.COOLIFY_APP_UUID != ''
+      && vars.COOLIFY_APP_UUID != '' && vars.COOLIFY_API_UUID != ''
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write # jeton OIDC pour rejoindre le tailnet, aucun secret Tailscale longue durée
     env:
       COOLIFY_API: http://100.125.33.49:8000/api/v1 # IP Tailscale du VPS
-      UUID: ${{ vars.COOLIFY_APP_UUID }}
+      UUID: ${{ vars.COOLIFY_APP_UUID }} # app compose : code server Dagster
+      API_UUID: ${{ vars.COOLIFY_API_UUID }} # app Docker Image : API
     steps:
       - name: Rejoindre le tailnet (nœud éphémère tag:ci)
         uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
@@ -188,9 +189,23 @@ jobs:
           tags: tag:ci
           ping: 100.125.33.49
 
-      - name: IMAGE_TAG = sha publié, puis redeploy
+      # API : app Coolify « Docker Image » à part, seul type où Coolify fait un rolling update
+      # (attend /health/ready via le HEALTHCHECK de l'image avant de couper l'ancienne).
+      - name: API - tag de l'image = sha publié, puis rolling update
         run: |
           TAG="sha-${GITHUB_SHA:0:7}" # même format que docker/metadata-action type=sha
+          curl -fsS --max-time 30 -X PATCH "$COOLIFY_API/applications/$API_UUID" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"docker_registry_image_tag\":\"$TAG\"}"
+          curl -fsS --max-time 30 -X POST "$COOLIFY_API/deploy?uuid=$API_UUID&force=false" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
+
+      # Code server Dagster (compose) : recréé sans rolling, une coupure de quelques secondes
+      # ne gêne que le réentraînement planifié.
+      - name: Dagster - IMAGE_TAG = sha publié, puis redeploy
+        run: |
+          TAG="sha-${GITHUB_SHA:0:7}"
           curl -fsS --max-time 30 -X PATCH "$COOLIFY_API/applications/$UUID/envs" \
             -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
             -H "Content-Type: application/json" \
