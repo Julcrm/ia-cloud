@@ -1,6 +1,6 @@
 import io
+import json
 
-import joblib
 import pytest
 
 from express_delivery.config import FEATURE_COLUMNS, MODEL_VERSION
@@ -30,7 +30,8 @@ def test_save_puts_versioned_files_and_current_pointer():
     repo.save({"model": "stub"}, {"accuracy": 0.9}, {"name": "card"})
 
     keys = {key for _, key in repo.client.objects}
-    version = f"{PREFIX}/{MODEL_VERSION}"
+    assert repo.current_version().startswith(f"{MODEL_VERSION}-")
+    version = f"{PREFIX}/{repo.current_version()}"
     assert keys == {
         f"{version}/express_delivery_model.joblib",
         f"{version}/metrics.json",
@@ -54,13 +55,24 @@ def test_load_refuses_a_model_trained_on_other_features():
     repo.save({"model": "stub"}, {}, {})
 
     # features.json figé sur d'autres variables que celles du code.
-    bad = io.BytesIO()
-    joblib.dump({}, bad)
-    import json
-
-    client.objects[("artifacts", f"{PREFIX}/{MODEL_VERSION}/features.json")] = json.dumps(
+    client.objects[("artifacts", f"{PREFIX}/{repo.current_version()}/features.json")] = json.dumps(
         {"features": FEATURE_COLUMNS[:-1]}
     ).encode()
 
     with pytest.raises(ValueError, match="Réentraîner"):
         repo.load()
+
+
+def test_each_training_gets_its_own_folder_and_moves_current():
+    repo = S3ModelRepository(client=FakeS3(), bucket="artifacts")
+    repo.save({"model": "first"}, {}, {"name": "first"})
+    first = repo.current_version()
+
+    repo.save({"model": "second"}, {}, {"name": "second"})
+
+    # current.json change : l'API voit le réentraînement et recharge le modèle.
+    assert repo.current_version() != first
+    assert repo.load() == {"model": "second"}
+    # L'ancien dossier reste intact : retour arrière = réécrire current.json.
+    repo._put_json(CURRENT_KEY, {"version": first})
+    assert repo.load() == {"model": "first"}
