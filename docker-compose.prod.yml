@@ -1,4 +1,6 @@
-# Environnement de production (VPS, Coolify) : l'application seule.
+# Environnement de production (VPS, Coolify) : code server Dagster du réentraînement.
+# L'API est une app Coolify « Docker Image » à part (ghcr.io/julcrm/ia-cloud-api:sha-<commit>),
+# seul type où Coolify fait un rolling update (ADR-0005) ; elle reprend le HEALTHCHECK de l'image.
 # PostgreSQL (base de l'ERP, catalogue DuckLake, stockage Dagster) et Garage sont des services partagés du VPS,
 # joints par les variables d'environnement définies dans Coolify (ADR-0006, ADR-0007).
 # Images testées par le pipeline, tag figé sha-<commit> (ADR-0005).
@@ -7,7 +9,7 @@ x-hardening: &hardening
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
 
-# Artefacts du modèle sur Garage (ADR-0002) : écrits par Dagster, lus par l'API.
+# Artefacts du modèle sur Garage (ADR-0002) : écrits ici par Dagster, lus par l'API.
 x-s3-env: &s3-env
   S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:?}
   AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
@@ -46,27 +48,6 @@ services:
       resources:
         limits:
           memory: 2G
-    networks:
-      - coolify
-
-  api:
-    <<: *hardening
-    image: ghcr.io/julcrm/ia-cloud-api:${IMAGE_TAG:?tag sha-<commit> obligatoire}
-    restart: unless-stopped
-    environment:
-      <<: *s3-env
-      API_KEY: ${API_KEY:?}
-      DUCKLAKE_CATALOG: "ducklake:postgres:"
-      DUCKLAKE_DATA_PATH: ${DUCKLAKE_DATA_PATH:?}
-      POSTGRES_HOST: ${POSTGRES_HOST:?}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${POSTGRES_DB:-ia_cloud}
-      POSTGRES_USER: ${POSTGRES_USER:?}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
-    expose:
-      - "8000"
-    # Pas de dépendance à Dagster : l'API lit le modèle depuis Garage (ADR-0002) et reste
-    # not_ready tant que current.json n'existe pas ; la sonde readiness le relit sans redémarrer.
     networks:
       - coolify
 
