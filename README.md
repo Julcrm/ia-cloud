@@ -115,6 +115,18 @@ curl -X POST http://localhost:8000/v1/predictions \
        "weather": "normal", "delivery_zone": "centre", "customer_type": "premium"}'
 ```
 
+## Mini IHM
+
+Service `erp-ui` du compose de prod (`src/express_delivery/ui/`) : à gauche les commandes de
+l'ERP qui arrivent (table DuckLake `erp_orders`, rafraîchie toutes les 5 s), à droite la
+commande à traiter avec la prédiction OUI/NON du modèle en service (même `current.json` et même
+code de prédiction que l'API), bouton « Suivant ». Sans authentification : publiée sur
+`127.0.0.1:8090` du VPS seulement.
+
+```bash
+ssh -L 8090:127.0.0.1:8090 root@<IP Tailscale du VPS>   # puis http://localhost:8090
+```
+
 ## Contribuer
 
 Branches (`main`, `dev`, `feature/*`, `hotfix/*`), commits, fusion par pull request
@@ -139,6 +151,7 @@ une fois le pipeline au vert, ADR : voir [CONTRIBUTING.md](CONTRIBUTING.md).
     ├── domain/          # logique métier : qualité des données, entraînement, prédiction
     ├── pipelines.py     # TrainingPipeline, BatchPredictionPipeline
     ├── api/             # schémas Pydantic et routes FastAPI
+    ├── ui/              # mini IHM : commandes ERP qui arrivent et prédiction
     ├── config.py        # constantes de production
     └── training_config.py
 ```

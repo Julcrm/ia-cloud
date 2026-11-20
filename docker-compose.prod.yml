@@ -1,5 +1,5 @@
 # Environnement de production (VPS, Coolify) : code server Dagster du réentraînement et consumer
-# du topic erp.orders vers DuckLake.
+# du topic erp.orders vers DuckLake, et mini IHM (erp-ui).
 # L'API est une app Coolify « Docker Image » à part (ghcr.io/julcrm/ia-cloud-api:sha-<commit>),
 # seul type où Coolify fait un rolling update (ADR-0005) ; elle reprend le HEALTHCHECK de l'image.
 # PostgreSQL (base de l'ERP, catalogue DuckLake, stockage Dagster) et Garage sont des services partagés du VPS,
@@ -67,6 +67,31 @@ services:
     environment:
       <<: [*s3-env, *ducklake-env]
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - coolify
+
+  # Mini IHM : commandes ERP qui arrivent (DuckLake) et prédiction du modèle en service.
+  # Image de l'API, autre commande. Sans authentification : publiée sur 127.0.0.1 du VPS seulement,
+  # ouverte par tunnel SSH (ssh -L 8090:127.0.0.1:8090 root@<IP Tailscale du VPS>).
+  erp-ui:
+    <<: *hardening
+    image: ghcr.io/julcrm/ia-cloud-api:${IMAGE_TAG:?tag sha-<commit> obligatoire}
+    command: ["uvicorn", "express_delivery.ui.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8000"
+    environment:
+      <<: [*s3-env, *ducklake-env]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     deploy:
       resources:
         limits:
