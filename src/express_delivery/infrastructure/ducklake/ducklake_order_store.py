@@ -28,6 +28,60 @@ def sql_literal(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def connect_lake(catalog=DUCKLAKE_CATALOG, data_path=DUCKLAKE_DATA_PATH):
+    """Connexion DuckDB avec le lac attaché sous le nom `lake` (API et consumer ERP).
+
+    Les identifiants PostgreSQL et S3 passent par des secrets DuckDB, jamais par
+    la chaîne d'ATTACH, pour ne pas apparaître dans les messages d'erreur.
+    """
+    _create_local_dirs(catalog, data_path)
+    connection = duckdb.connect()
+    connection.execute("INSTALL ducklake; LOAD ducklake;")
+    if catalog.startswith("ducklake:postgres:"):
+        _create_postgres_secret(connection)
+    if data_path.startswith("s3://"):
+        _create_s3_secret(connection)
+    # Limite d'inlining en option d'ATTACH : CALL lake.set_option(...) fait planter
+    # DuckDB 1.5.6 à la réouverture d'un catalogue PostgreSQL existant.
+    connection.execute(
+        f"ATTACH '{catalog}' AS lake (DATA_PATH '{data_path}', DATA_INLINING_ROW_LIMIT 1000)"
+    )
+    return connection
+
+
+def _create_postgres_secret(connection):
+    # Sans nom : DuckLake n'utilise que le secret PostgreSQL par défaut.
+    connection.execute("INSTALL postgres; LOAD postgres;")
+    connection.execute(f"""
+        CREATE SECRET (
+            TYPE postgres, HOST {sql_literal(POSTGRES_HOST)}, PORT {POSTGRES_PORT},
+            DATABASE {sql_literal(POSTGRES_DB)}, USER {sql_literal(POSTGRES_USER)},
+            PASSWORD {sql_literal(POSTGRES_PASSWORD)}
+        )
+    """)
+
+
+def _create_s3_secret(connection):
+    endpoint = urlsplit(S3_ENDPOINT_URL)
+    connection.execute("INSTALL httpfs; LOAD httpfs;")
+    connection.execute(f"""
+        CREATE SECRET (
+            TYPE s3, KEY_ID {sql_literal(AWS_ACCESS_KEY_ID)},
+            SECRET {sql_literal(AWS_SECRET_ACCESS_KEY)},
+            REGION {sql_literal(AWS_DEFAULT_REGION)},
+            ENDPOINT {sql_literal(endpoint.netloc)}, URL_STYLE 'path',
+            USE_SSL {str(endpoint.scheme == "https").lower()}
+        )
+    """)
+
+
+def _create_local_dirs(catalog, data_path):
+    if catalog.startswith("ducklake:") and ":" not in catalog.removeprefix("ducklake:"):
+        Path(catalog.removeprefix("ducklake:")).parent.mkdir(parents=True, exist_ok=True)
+    if "://" not in data_path:
+        Path(data_path).mkdir(parents=True, exist_ok=True)
+
+
 class DuckLakeOrderStore(OrderStore):
     """Commandes dans DuckLake (ADR-0001).
 
@@ -35,27 +89,12 @@ class DuckLakeOrderStore(OrderStore):
     insertions dans le catalogue au lieu de créer un fichier Parquet chacune.
     La vue `orders` ne garde que la première ligne reçue par order_id, car
     DuckLake n'a pas de contrainte d'unicité.
-
-    Les identifiants PostgreSQL et S3 passent par des secrets DuckDB, jamais par
-    la chaîne d'ATTACH, pour ne pas apparaître dans les messages d'erreur.
     """
 
     def __init__(self, catalog=DUCKLAKE_CATALOG, data_path=DUCKLAKE_DATA_PATH):
-        self._create_local_dirs(catalog, data_path)
-
-        self._connection = duckdb.connect()
+        self._connection = connect_lake(catalog, data_path)
         self._lock = threading.Lock()
 
-        self._connection.execute("INSTALL ducklake; LOAD ducklake;")
-        if catalog.startswith("ducklake:postgres:"):
-            self._create_postgres_secret()
-        if data_path.startswith("s3://"):
-            self._create_s3_secret()
-        # Limite d'inlining en option d'ATTACH : CALL lake.set_option(...) fait planter
-        # DuckDB 1.5.6 à la réouverture d'un catalogue PostgreSQL existant.
-        self._connection.execute(
-            f"ATTACH '{catalog}' AS lake (DATA_PATH '{data_path}', DATA_INLINING_ROW_LIMIT 1000)"
-        )
         self._connection.execute("""
             CREATE TABLE IF NOT EXISTS lake.orders_raw (
                 order_id VARCHAR NOT NULL,
@@ -79,37 +118,6 @@ class DuckLakeOrderStore(OrderStore):
             SELECT * FROM lake.orders_raw
             QUALIFY row_number() OVER (PARTITION BY order_id ORDER BY received_at) = 1
         """)
-
-    def _create_postgres_secret(self):
-        # Sans nom : DuckLake n'utilise que le secret PostgreSQL par défaut.
-        self._connection.execute("INSTALL postgres; LOAD postgres;")
-        self._connection.execute(f"""
-            CREATE SECRET (
-                TYPE postgres, HOST {sql_literal(POSTGRES_HOST)}, PORT {POSTGRES_PORT},
-                DATABASE {sql_literal(POSTGRES_DB)}, USER {sql_literal(POSTGRES_USER)},
-                PASSWORD {sql_literal(POSTGRES_PASSWORD)}
-            )
-        """)
-
-    def _create_s3_secret(self):
-        endpoint = urlsplit(S3_ENDPOINT_URL)
-        self._connection.execute("INSTALL httpfs; LOAD httpfs;")
-        self._connection.execute(f"""
-            CREATE SECRET (
-                TYPE s3, KEY_ID {sql_literal(AWS_ACCESS_KEY_ID)},
-                SECRET {sql_literal(AWS_SECRET_ACCESS_KEY)},
-                REGION {sql_literal(AWS_DEFAULT_REGION)},
-                ENDPOINT {sql_literal(endpoint.netloc)}, URL_STYLE 'path',
-                USE_SSL {str(endpoint.scheme == "https").lower()}
-            )
-        """)
-
-    @staticmethod
-    def _create_local_dirs(catalog, data_path):
-        if catalog.startswith("ducklake:") and ":" not in catalog.removeprefix("ducklake:"):
-            Path(catalog.removeprefix("ducklake:")).parent.mkdir(parents=True, exist_ok=True)
-        if "://" not in data_path:
-            Path(data_path).mkdir(parents=True, exist_ok=True)
 
     def add(self, order):
         placeholders = ", ".join("?" for _ in COLUMNS)

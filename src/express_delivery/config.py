@@ -52,6 +52,10 @@ ERP_POSTGRES_DB = os.environ.get("ERP_POSTGRES_DB", "livraison_express")
 ERP_POSTGRES_USER = os.environ.get("ERP_POSTGRES_USER", "")
 ERP_POSTGRES_PASSWORD = os.environ.get("ERP_POSTGRES_PASSWORD", "")
 
+# Flux des commandes de l'ERP (Redpanda), copié dans DuckLake par le consumer ERP.
+KAFKA_BOOTSTRAP_SERVERS = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+ERP_ORDERS_TOPIC = os.environ.get("ERP_ORDERS_TOPIC", "erp.orders")
+
 # Stockage S3 (Garage), lu seulement si DUCKLAKE_DATA_PATH commence par "s3://".
 # Garage refuse une signature sans région : us-east-1.
 S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL", "http://localhost:3900")

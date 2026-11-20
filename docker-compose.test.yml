@@ -3,6 +3,7 @@
 # Ordre : Redpanda + topic erp.orders -> simulateur (historique + 100 commandes live publiées,
 #         puis s'arrête) -> consumer vers la base ERP (s'arrête une fois le topic vidé)
 #         -> entraînement sur l'ERP -> API avec le modèle obtenu.
+#         En parallèle, consumer erp.orders -> DuckLake (lac local, distinct de celui de l'API).
 # Les services ERP viennent de erp-simulator/, sans modification.
 
 x-hardening: &hardening
@@ -49,6 +50,22 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      erp-simulator:
+        condition: service_completed_successfully
+
+  erp-ducklake-sink:
+    <<: *hardening
+    build:
+      context: .
+      target: ingest
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      DUCKLAKE_CATALOG: ducklake:/home/app/lake/catalog.ducklake
+      DUCKLAKE_DATA_PATH: /home/app/lake/data/
+      STOP_AFTER_IDLE_SECONDS: 15
+    tmpfs:
+      - /home/app/lake:uid=1000,gid=1000
+    depends_on:
       erp-simulator:
         condition: service_completed_successfully
 

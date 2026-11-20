@@ -34,9 +34,11 @@ orchestration = [
     # SQLAlchemy 2.1 vise psycopg 3 par défaut, dagster-postgres n'installe que psycopg2 : même version que le dagster-workspace.
     "sqlalchemy==2.0.54",
 ]
+# Consumer Redpanda : copie du topic erp.orders dans DuckLake (image ingest).
+streaming = ["confluent-kafka==2.16.1"]
 
 [tool.uv]
-default-groups = ["train", "dev", "orchestration"]
+default-groups = ["train", "dev", "orchestration", "streaming"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
