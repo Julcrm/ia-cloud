@@ -1,5 +1,6 @@
 import io
 import json
+from datetime import UTC, datetime
 
 import boto3
 import joblib
@@ -53,7 +54,10 @@ class S3ModelRepository(ModelRepository):
         return self._client
 
     def save(self, model_pipeline, metrics, model_card):
-        version = f"{PREFIX}/{MODEL_VERSION}"
+        # Un dossier par entraînement : current.json change, l'API recharge le nouveau modèle,
+        # et les dossiers précédents restent disponibles pour un retour arrière.
+        version_id = f"{MODEL_VERSION}-{datetime.now(UTC):%Y%m%dT%H%M%S%fZ}"
+        version = f"{PREFIX}/{version_id}"
 
         buffer = io.BytesIO()
         joblib.dump(model_pipeline, buffer)
@@ -73,7 +77,7 @@ class S3ModelRepository(ModelRepository):
         self._put_json(f"{version}/model_card.json", model_card)
 
         # En dernier : la version n'est servie qu'une fois tous ses fichiers écrits.
-        self._put_json(CURRENT_KEY, {"version": MODEL_VERSION})
+        self._put_json(CURRENT_KEY, {"version": version_id})
         print(f"Modèle sauvegardé sur s3://{self._bucket}/{version}/")
 
     def load(self):
